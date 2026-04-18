@@ -186,7 +186,7 @@ export default function WorkerDashboardPage() {
       setUser(profile);
 
       if (profile.role !== 'worker') {
-        navigate('/dashboard');
+        navigate('/');
         return;
       }
 
@@ -289,13 +289,19 @@ export default function WorkerDashboardPage() {
 
   if (loading) {
     return (
+<<<<<<< Updated upstream
       <div className="min-h-screen flex items-center justify-center bg-zinc-100">
         <div className="text-zinc-600">Loading dashboard...</div>
+=======
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-gray-600">Loading...</div>
+>>>>>>> Stashed changes
       </div>
     );
   }
 
   return (
+<<<<<<< Updated upstream
     <div className="min-h-screen bg-zinc-100 pb-8">
       <Navbar user={user} />
 
@@ -314,6 +320,54 @@ export default function WorkerDashboardPage() {
                 <p className="mt-2 inline-flex items-center gap-2 rounded-md bg-emerald-500/20 px-2 py-1 text-xs text-emerald-200">
                   <BadgeCheck className="h-3.5 w-3.5" />
                   Verified {stats.verifiedCount} sessions
+=======
+    <div className="min-h-screen bg-gray-50">
+      <Navbar user={user} />
+
+      <div className="max-w-4xl mx-auto p-4 md:p-6">
+        <div className="mb-8">
+          <h1 className="text-2xl md:text-3xl font-bold text-gray-900">
+            Welcome back, {user?.name?.split(' ')[0]}!
+          </h1>
+          <p className="text-gray-500 mt-1">Here's your earnings overview</p>
+        </div>
+
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+          <div className="bg-white rounded-xl p-4 md:p-6 shadow-sm border border-gray-200">
+            <p className="text-gray-500 text-sm">This Week</p>
+            <p className="text-2xl md:text-3xl font-bold text-gray-900 mt-1">
+              {formatCurrency(stats.thisWeek)}
+            </p>
+          </div>
+          <div className="bg-white rounded-xl p-4 md:p-6 shadow-sm border border-gray-200">
+            <p className="text-gray-500 text-sm">Total Earned</p>
+            <p className="text-2xl md:text-3xl font-bold text-green-600 mt-1">
+              {formatCurrency(stats.totalEarnings)}
+            </p>
+          </div>
+          <div className="bg-white rounded-xl p-4 md:p-6 shadow-sm border border-gray-200">
+            <p className="text-gray-500 text-sm">Verified</p>
+            <p className="text-2xl md:text-3xl font-bold text-green-600 mt-1">
+              {stats.verifiedCount}
+            </p>
+          </div>
+          <div className="bg-white rounded-xl p-4 md:p-6 shadow-sm border border-gray-200">
+            <p className="text-gray-500 text-sm">Pending</p>
+            <p className="text-2xl md:text-3xl font-bold text-amber-600 mt-1">
+              {stats.unverifiedCount}
+            </p>
+          </div>
+        </div>
+
+        {stats.anomalyCount > 0 && (
+          <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-8">
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">⚠️</span>
+              <div>
+                <p className="text-red-700 font-medium">Anomaly Detected</p>
+                <p className="text-gray-500 text-sm">
+                  {stats.anomalyCount} unusual deduction detected in your recent earnings
+>>>>>>> Stashed changes
                 </p>
               </div>
 
@@ -355,6 +409,7 @@ export default function WorkerDashboardPage() {
             </div>
           </div>
 
+<<<<<<< Updated upstream
           <div className="space-y-4">
             <div className="rounded-xl border border-red-200 bg-[#fbe7e7] p-4 text-red-800 shadow-sm">
               <div className="flex items-start gap-3">
@@ -366,6 +421,42 @@ export default function WorkerDashboardPage() {
                       Unusual deduction detected on {formatDateLabel(topAnomaly.session_date)} -
                       {' '}
                       {Math.round(topAnomaly.deductionPercent)}% vs your usual.
+=======
+        <a href="/worker/log-earnings" className="bg-black text-white rounded-xl p-6 hover:bg-gray-800 transition-colors group block mb-8">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-bold">Log a Shift</h3>
+              <p className="text-gray-400 text-sm mt-1">Record your work session</p>
+            </div>
+            <span className="text-3xl group-hover:scale-110 transition-transform">+</span>
+          </div>
+        </a>
+
+        {earnings.length > 0 && (
+          <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-gray-900">Recent Sessions</h3>
+              <a href="/worker/log-earnings" className="text-sm text-gray-500 hover:text-gray-900">
+                View all →
+              </a>
+            </div>
+            <div className="space-y-3">
+              {earnings.map((session, i) => (
+                <div key={i} className="flex items-center justify-between py-3 border-b border-gray-100 last:border-0">
+                  <div className="flex items-center gap-4">
+                    <div className={`w-2 h-2 rounded-full ${session.evidance?.verified ? 'bg-green-500' : 'bg-amber-500'}`} />
+                    <div>
+                      <p className="text-gray-900 font-medium">{session.platform}</p>
+                      <p className="text-gray-500 text-sm">
+                        {new Date(session.session_date).toLocaleDateString()} · {session.hours_worked?.toFixed(1)}h · {session.trips_completed} trips
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-gray-900 font-medium">{formatCurrency(session.earning?.net_received)}</p>
+                    <p className={`text-xs ${session.evidance?.verified ? 'text-green-600' : 'text-amber-600'}`}>
+                      {session.evidance?.verified ? '✓ Verified' : '⏳ Pending'}
+>>>>>>> Stashed changes
                     </p>
                   ) : (
                     <p className="mt-1 text-sm">No high-risk deductions detected in recent sessions.</p>
@@ -410,6 +501,7 @@ export default function WorkerDashboardPage() {
           </div>
         </div>
 
+<<<<<<< Updated upstream
         <div className="mt-6 rounded-xl border border-zinc-200 bg-white shadow-sm">
           <div className="flex items-center justify-between border-b border-zinc-200 px-4 py-4 sm:px-5">
             <h2 className="text-xl font-semibold text-zinc-900">Recent Activity</h2>
@@ -417,6 +509,14 @@ export default function WorkerDashboardPage() {
               View All Activity
               <ArrowRight className="h-4 w-4" />
             </Link>
+=======
+        {earnings.length === 0 && (
+          <div className="bg-white rounded-xl p-8 text-center shadow-sm border border-gray-200">
+            <p className="text-gray-500 mb-4">No shifts logged yet</p>
+            <a href="/worker/log-earnings" className="inline-block bg-black text-white px-6 py-3 rounded-lg font-medium hover:bg-gray-800">
+              Log Your First Shift
+            </a>
+>>>>>>> Stashed changes
           </div>
 
           {recentSessions.length > 0 ? (

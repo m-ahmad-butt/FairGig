@@ -7,10 +7,9 @@ import ForgotPasswordPage from './pages/Auth/ForgotPasswordPage';
 import VerifyOtpPage from './pages/Auth/VerifyOtpPage';
 import PendingApprovalPage from './pages/Auth/PendingApprovalPage';
 import OnboardingPage from './pages/Auth/OnboardingPage';
-import DashboardPage from './pages/Dashboard/DashboardPage';
 import WorkerDashboard from './pages/Dashboard/WorkerDashboard';
 import VerifierDashboard from './pages/Dashboard/VerifierDashboard';
-import AdvocateDashboard from './pages/Dashboard/AdvocateDashboard';
+import VerificationDetail from './pages/Dashboard/VerificationDetail';
 import AdminDashboard from './pages/Admin/AdminDashboard';
 import ProfilePage from './pages/Profile/ProfilePage';
 import WorkerCommunityPage from './pages/Community/WorkerCommunityPage';
@@ -32,7 +31,6 @@ function App() {
         <Route path="/pending-approval" element={<PendingApprovalPage />} />
         
         {/* Dashboards */}
-        <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/profile" element={<ProfilePage />} />
         <Route path="/worker/profile" element={<ProfilePage />} />
         <Route path="/verifier/profile" element={<ProfilePage />} />
@@ -43,7 +41,7 @@ function App() {
         <Route path="/worker/certificate" element={<IncomeCertificatePage />} />
         <Route path="/worker/community" element={<WorkerCommunityPage />} />
         <Route path="/verifier/dashboard" element={<VerifierDashboard />} />
-        <Route path="/analyst/dashboard" element={<AdvocateDashboard />} />
+        <Route path="/verifier/verification/:id" element={<VerificationDetail />} />
         <Route path="/admin/dashboard" element={<AdminDashboard />} />
 
         <Route path="*" element={<Navigate to="/" replace />} />

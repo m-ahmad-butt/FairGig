@@ -172,8 +172,8 @@ class EarningsService {
   }
 
   // Update evidence verification status
-  async updateEvidence(sessionId, data) {
-    const response = await fetch(`${API_URL}/evidence/session/${sessionId}`, {
+  async updateEvidence(evidenceId, data) {
+    const response = await fetch(`${API_URL}/evidence/${evidenceId}/verified`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
@@ -185,6 +185,58 @@ class EarningsService {
     const result = await response.json();
     if (!response.ok) {
       throw new Error(result.error || 'Failed to update evidence');
+    }
+    return result;
+  }
+
+  // Get evidence by ID
+  async getEvidenceById(evidenceId) {
+    const response = await fetch(`${API_URL}/evidence/${evidenceId}`, {
+      headers: getAuthHeaders()
+    });
+
+    const result = await response.json();
+    if (!response.ok) {
+      throw new Error(result.error || 'Failed to get evidence');
+    }
+    return result;
+  }
+
+  // Get unverified evidence with details (for verifier queue)
+  async getUnverifiedEvidenceDetailed() {
+    const response = await fetch(`${API_URL}/evidence/unverified/detailed`, {
+      headers: getAuthHeaders()
+    });
+
+    const result = await response.json();
+    if (!response.ok) {
+      throw new Error(result.error || 'Failed to get unverified evidence');
+    }
+    return result;
+  }
+
+  // Get work session by ID
+  async getWorkSessionById(sessionId) {
+    const response = await fetch(`${API_URL}/work-sessions/${sessionId}`, {
+      headers: getAuthHeaders()
+    });
+
+    const result = await response.json();
+    if (!response.ok) {
+      throw new Error(result.error || 'Failed to get work session');
+    }
+    return result;
+  }
+
+  // Get earning by session ID
+  async getEarningBySession(sessionId) {
+    const response = await fetch(`${API_URL}/earnings?session_id=${sessionId}`, {
+      headers: getAuthHeaders()
+    });
+
+    const result = await response.json();
+    if (!response.ok) {
+      throw new Error(result.error || 'Failed to get earning');
     }
     return result;
   }

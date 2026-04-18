@@ -15,14 +15,14 @@ export default function Navbar({ user }) {
         ? '/worker/dashboard'
         : normalizedRole === 'verifier'
           ? '/verifier/dashboard'
-          : '/analyst/dashboard';
+          : '/';
 
   const profilePath =
     normalizedRole === 'worker'
       ? '/worker/profile'
       : normalizedRole === 'verifier'
         ? '/verifier/profile'
-        : '/analyst/profile';
+        : '/';
 
   const navItems = [
     { to: dashboardPath, label: 'Dashboard' },
