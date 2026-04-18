@@ -291,6 +291,10 @@ export default function WorkerDashboardPage() {
 						return updated.slice(0, 10);
 					});
 
+					if (['evidence_verified', 'evidence_flagged', 'evidence_rejected'].includes(notification.type)) {
+						loadData();
+					}
+
 					setTimeout(() => {
 						setNotifications(prev => 
 							prev.filter(n => n.id !== notification.id)
