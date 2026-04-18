@@ -2,10 +2,11 @@
 
 const express = require('express');
 const cors = require('cors');
-const { PrismaClient } = require('@prisma/client');
+const prisma = require('./config/prisma');
+const workSessionRoutes = require('./routes/workSessionRoutes');
+const earningRoutes = require('./routes/earningRoutes');
 
 const app = express();
-const prisma = new PrismaClient();
 const port = Number(process.env.PORT || 4002);
 
 app.use(cors());
@@ -31,8 +32,21 @@ app.get('/health', async (req, res) => {
 
 app.get('/', (req, res) => {
   res.json({
-    message: 'earnings-service is running'
+    message: 'earnings-service is running',
+    endpoints: {
+      health: '/health',
+      workSessions: '/work-sessions',
+      earnings: '/earnings'
+    }
   });
+});
+
+app.use('/work-sessions', workSessionRoutes);
+app.use('/earnings', earningRoutes);
+
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).json({ error: 'Something went wrong!' });
 });
 
 app.listen(port, '0.0.0.0', () => {

@@ -28,7 +28,14 @@ app.get('/health', (req, res) => {
   });
 });
 
-app.use('/api/auth', createProxyMiddleware({ target: targets.auth, changeOrigin: true, pathRewrite: { '^/api/auth': '' } }));
+app.use('/api/auth', createProxyMiddleware({ 
+  target: targets.auth, 
+  changeOrigin: true, 
+  pathRewrite: { '^/api/auth': '/api/auth' },
+  onProxyReq: (proxyReq, req, res) => {
+    console.log(`[Auth Proxy] ${req.method} ${req.path} -> ${targets.auth}${req.path}`);
+  }
+}));
 app.use('/api/earnings', createProxyMiddleware({ target: targets.earnings, changeOrigin: true, pathRewrite: { '^/api/earnings': '' } }));
 app.use('/api/grievance', createProxyMiddleware({ target: targets.grievance, changeOrigin: true, pathRewrite: { '^/api/grievance': '' } }));
 app.use('/api/certificate', createProxyMiddleware({ target: targets.certificate, changeOrigin: true, pathRewrite: { '^/api/certificate': '' } }));

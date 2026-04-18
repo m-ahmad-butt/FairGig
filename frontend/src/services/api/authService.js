@@ -1,4 +1,4 @@
-const API_URL = import.meta.env.VITE_AUTH_SERVICE_URL || 'http://localhost:4001/api/auth';
+const API_URL = import.meta.env.VITE_API_GATEWAY_URL || 'http://localhost:8080/api/auth';
 
 class AuthService {
   async signup(data) {
@@ -138,6 +138,33 @@ class AuthService {
     }
 
     localStorage.setItem('accessToken', result.accessToken);
+    return result;
+  }
+
+  async updateProfile(updateData) {
+    const accessToken = localStorage.getItem('accessToken');
+
+    const response = await fetch(`${API_URL}/profile`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken}`
+      },
+      body: JSON.stringify(updateData)
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      throw new Error(result.error || 'Failed to update profile');
+    }
+
+    if (result.user) {
+      const currentUser = this.getUser();
+      const updatedUser = { ...currentUser, ...result.user };
+      localStorage.setItem('user', JSON.stringify(updatedUser));
+    }
+
     return result;
   }
 

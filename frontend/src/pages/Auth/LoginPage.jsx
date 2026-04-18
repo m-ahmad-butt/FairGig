@@ -27,8 +27,6 @@ export default function LoginPage() {
       
       toast.success(result.message);
       
-      if (result.user.email === 'l233059@lhr.nu.edu.pk') {
-        navigate('/admin/dashboard');
       } else if (result.user.role === 'worker') {
         navigate('/worker/dashboard');
       } else if (result.user.role === 'verifier') {
@@ -36,7 +34,7 @@ export default function LoginPage() {
       } else if (result.user.role === 'analyst' || result.user.role === 'advocate') {
         navigate('/analyst/dashboard');
       } else {
-        navigate('/dashboard');
+        navigate('/profile');
       }
     } catch (error) {
       toast.error(error.message);
