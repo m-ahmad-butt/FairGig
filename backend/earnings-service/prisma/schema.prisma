@@ -13,3 +13,32 @@ model HealthPing {
   service   String
   createdAt DateTime @default(now())
 }
+
+model WorkSession {
+  id              String    @id @default(uuid()) @map("_id")
+  worker_id       String
+  platform        String
+  session_date    DateTime
+  start_time      DateTime
+  end_time        DateTime
+  hours_worked    Float
+  trips_completed Int
+  created_at      DateTime  @default(now())
+  earnings        Earning[]
+
+  @@index([worker_id])
+  @@index([session_date])
+  @@unique([worker_id, session_date])
+  @@map("work_sessions")
+}
+
+model Earning {
+  id           String      @id @default(uuid()) @map("_id")
+  session_id   String
+  gross_amount Decimal
+  created_at   DateTime    @default(now())
+  session      WorkSession @relation(fields: [session_id], references: [id])
+
+  @@index([session_id])
+  @@map("earnings")
+}
