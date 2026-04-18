@@ -6,22 +6,20 @@ import authService from '../../services/api/authService';
 import { Badge } from '../../components/ui/badge';
 import { Button } from '../../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
-import { getPlatformLabel } from '../../utils/workerProfileOptions';
-
-const PLATFORM_NAMES = ['Bykea', 'Careem', 'inDrive', 'Airlift', 'Foodpanda', 'Cheetay', 'Upwork', 'Fiverr', 'Freelancer.com', 'PeoplePerHour', 'TaskRobin', 'Rozgar'];
+import { getPlatformOptions } from '../../utils/workerProfileOptions';
 
 const CSV_TEMPLATE = 'platform,session_date,start_time,end_time,trips_completed,gross_earned,platform_deductions,net_received';
 
 const TABLE_FIELD_CLASS = 'h-8 rounded-md border border-zinc-200 bg-white px-2 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-900';
 
-function validateRow(row, index, existingDates, allowedPlatforms = PLATFORM_NAMES) {
+function validateRow(row, index, existingDates, allowedPlatforms = [], invalidPlatformMessage = 'Invalid platform value') {
   const errors = [];
   const warnings = [];
 
   if (!row.platform || row.platform.trim() === '') {
     errors.push('Platform is required');
   } else if (!allowedPlatforms.map((platformName) => platformName.toLowerCase()).includes(row.platform.toLowerCase().trim())) {
-    errors.push('Invalid platform');
+    errors.push(invalidPlatformMessage);
   }
 
   if (!row.session_date || row.session_date.trim() === '') {
@@ -130,10 +128,11 @@ export default function BulkCSVImport({ onComplete }) {
   const fileInputRef = useRef(null);
   const user = authService.getUser();
   const workerId = user?.id || user?._id;
-  const selectedPlatformName = user?.platform
-    ? getPlatformLabel(user?.category, user.platform).trim()
-    : '';
-  const allowedPlatforms = selectedPlatformName ? [selectedPlatformName] : PLATFORM_NAMES;
+  const userCategory = String(user?.category || '').toLowerCase() === 'rider' ? 'rider' : 'freelance';
+  const categoryLabel = userCategory === 'rider' ? 'Rider' : 'Freelancer';
+  const allowedPlatformOptions = getPlatformOptions(userCategory);
+  const allowedPlatforms = allowedPlatformOptions.map((option) => option.value);
+  const invalidPlatformMessage = `Invalid platform for ${categoryLabel} category`;
 
   const downloadTemplate = () => {
     const blob = new Blob([CSV_TEMPLATE], { type: 'text/csv' });
@@ -155,10 +154,7 @@ export default function BulkCSVImport({ onComplete }) {
       complete: (results) => {
         const dates = new Set();
         const validated = results.data.map((row, index) => {
-          const normalizedRow = selectedPlatformName
-            ? { ...row, platform: selectedPlatformName }
-            : row;
-          const rowWithDate = validateRow(normalizedRow, index, dates, allowedPlatforms);
+          const rowWithDate = validateRow(row, index, dates, allowedPlatforms, invalidPlatformMessage);
           if (rowWithDate.session_date && !rowWithDate._errors.some(e => e.includes('Duplicate'))) {
             dates.add(rowWithDate.session_date.trim());
           }
@@ -185,12 +181,7 @@ export default function BulkCSVImport({ onComplete }) {
             .filter(Boolean)
         );
 
-        const nextRow = { ...row, [field]: value };
-        if (selectedPlatformName) {
-          nextRow.platform = selectedPlatformName;
-        }
-
-        return validateRow(nextRow, index, dateSet, allowedPlatforms);
+        return validateRow({ ...row, [field]: value }, index, dateSet, allowedPlatforms, invalidPlatformMessage);
       }
       return row;
     }));
@@ -353,7 +344,7 @@ export default function BulkCSVImport({ onComplete }) {
               <div>
                 <CardTitle>Upload CSV</CardTitle>
                 <CardDescription>
-                  Import multiple sessions using the provided template format.
+                  Import multiple sessions using the provided template format. Allowed platforms are based on your {categoryLabel} category.
                 </CardDescription>
               </div>
               <Button variant="outline" onClick={downloadTemplate} className="shrink-0">
@@ -385,7 +376,6 @@ export default function BulkCSVImport({ onComplete }) {
               <CardHeader className="pb-3">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="flex flex-wrap items-center gap-2">
-                    {selectedPlatformName && <Badge variant="secondary">Platform: {selectedPlatformName}</Badge>}
                     <Badge variant="success">{validCount} valid</Badge>
                     <Badge variant="secondary" className="bg-amber-100 text-amber-700 hover:bg-amber-200">
                       {warningCount} warnings
@@ -429,24 +419,18 @@ export default function BulkCSVImport({ onComplete }) {
                               </Badge>
                             </td>
                             <td className="px-2 py-2">
-                              {selectedPlatformName ? (
-                                <div className="flex h-8 w-28 items-center rounded-md border border-zinc-200 bg-zinc-100 px-2 text-xs text-zinc-700">
-                                  {selectedPlatformName}
-                                </div>
-                              ) : (
-                                <select
-                                  value={row.platform || ''}
-                                  onChange={(e) => updateRow(idx, 'platform', e.target.value)}
-                                  className={`${TABLE_FIELD_CLASS} w-28`}
-                                >
-                                  <option value="">Select</option>
-                                  {allowedPlatforms.map((platformOption) => (
-                                    <option key={platformOption} value={platformOption}>
-                                      {platformOption}
-                                    </option>
-                                  ))}
-                                </select>
-                              )}
+                              <select
+                                value={row.platform || ''}
+                                onChange={(e) => updateRow(idx, 'platform', e.target.value)}
+                                className={`${TABLE_FIELD_CLASS} w-28`}
+                              >
+                                <option value="">Select</option>
+                                {allowedPlatformOptions.map((platformOption) => (
+                                  <option key={platformOption.value} value={platformOption.value}>
+                                    {platformOption.label}
+                                  </option>
+                                ))}
+                              </select>
                             </td>
                             <td className="px-2 py-2">
                               <input

@@ -249,6 +249,32 @@ export default function OnboardingPage() {
   };
 
   const submitOnboarding = async () => {
+    if (!isWorker) {
+      setSaving(true);
+
+      try {
+        await authService.updateProfile({
+          city: null,
+          zone: null,
+          latitude: null,
+          longitude: null,
+          category: null,
+          platform: null,
+          vehicleType: null,
+          freelancerType: null
+        });
+
+        toast.success('Onboarding completed successfully');
+        navigate(getDashboardPath(user.role));
+      } catch (error) {
+        toast.error(error.message);
+      } finally {
+        setSaving(false);
+      }
+
+      return;
+    }
+
     if (!formData.city.trim() || !formData.zone.trim()) {
       toast.error('City and zone are required');
       return;
@@ -315,7 +341,11 @@ export default function OnboardingPage() {
         <div className="bg-white rounded-xl shadow border border-gray-100 p-6 md:p-8">
           <div className="mb-6">
             <h1 className="text-2xl font-bold text-gray-900">Complete your profile</h1>
-            <p className="text-gray-600 mt-1">Set your location and worker details to continue.</p>
+            <p className="text-gray-600 mt-1">
+              {isWorker
+                ? 'Set your location and worker details to continue.'
+                : 'No additional profile fields are required for your role.'}
+            </p>
           </div>
 
           <div className="flex items-center gap-3 mb-6">
@@ -325,82 +355,99 @@ export default function OnboardingPage() {
 
           {step === 1 && (
             <div className="space-y-6">
-              <div>
-                <h2 className="text-lg font-semibold text-gray-900">Location</h2>
-                <p className="text-sm text-gray-600">Default map center is Pakistan, Lahore.</p>
-              </div>
+              {!isWorker ? (
+                <>
+                  <div>
+                    <h2 className="text-lg font-semibold text-gray-900">Role setup</h2>
+                    <p className="text-sm text-gray-600">
+                      Location and platform are not required for verifier and analyst accounts.
+                    </p>
+                  </div>
 
-              <div className="h-72 rounded-lg overflow-hidden border border-gray-200">
-                <LocationPickerMap position={mapPosition} onPositionChange={handleMapPositionChange} />
-              </div>
+                  <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm text-gray-700">
+                    We will keep location, category, platform, and worker-type fields as null for your role.
+                  </div>
 
-              <button
-                type="button"
-                onClick={handleUseCurrentLocation}
-                disabled={detectingLocation}
-                className="px-4 py-2 text-sm font-medium text-white bg-black rounded-md hover:bg-gray-800 disabled:opacity-60"
-              >
-                {detectingLocation ? 'Detecting location...' : 'Use Current Location'}
-              </button>
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      onClick={submitOnboarding}
+                      disabled={saving}
+                      className="px-5 py-2.5 text-sm font-medium text-white bg-black rounded-md hover:bg-gray-800 disabled:opacity-60"
+                    >
+                      {saving ? 'Saving...' : 'Continue'}
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div>
+                    <h2 className="text-lg font-semibold text-gray-900">Location</h2>
+                    <p className="text-sm text-gray-600">Default map center is Pakistan, Lahore.</p>
+                  </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="city">
-                    City
-                  </label>
-                  <input
-                    id="city"
-                    name="city"
-                    type="text"
-                    value={formData.city}
-                    onChange={handleInputChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black"
-                    placeholder="Lahore"
-                  />
-                </div>
+                  <div className="h-72 rounded-lg overflow-hidden border border-gray-200">
+                    <LocationPickerMap position={mapPosition} onPositionChange={handleMapPositionChange} />
+                  </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="zone">
-                    Zone / Area
-                  </label>
-                  <input
-                    id="zone"
-                    name="zone"
-                    type="text"
-                    value={formData.zone}
-                    onChange={handleInputChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black"
-                    placeholder="Gulberg"
-                  />
-                </div>
-              </div>
-
-              <div className="flex justify-end">
-                {isWorker ? (
                   <button
                     type="button"
-                    onClick={() => {
-                      if (!formData.city.trim() || !formData.zone.trim()) {
-                        toast.error('City and zone are required');
-                        return;
-                      }
-                      setStep(2);
-                    }}
-                    className="px-5 py-2.5 text-sm font-medium text-white bg-black rounded-md hover:bg-gray-800"
+                    onClick={handleUseCurrentLocation}
+                    disabled={detectingLocation}
+                    className="px-4 py-2 text-sm font-medium text-white bg-black rounded-md hover:bg-gray-800 disabled:opacity-60"
                   >
-                    Next
+                    {detectingLocation ? 'Detecting location...' : 'Use Current Location'}
                   </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={submitOnboarding}
-                    disabled={saving}
-                    className="px-5 py-2.5 text-sm font-medium text-white bg-black rounded-md hover:bg-gray-800 disabled:opacity-60"
-                  >
-                    {saving ? 'Saving...' : 'Finish'}
-                  </button>
-                )}
-              </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="city">
+                        City
+                      </label>
+                      <input
+                        id="city"
+                        name="city"
+                        type="text"
+                        value={formData.city}
+                        onChange={handleInputChange}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black"
+                        placeholder="Lahore"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="zone">
+                        Zone / Area
+                      </label>
+                      <input
+                        id="zone"
+                        name="zone"
+                        type="text"
+                        value={formData.zone}
+                        onChange={handleInputChange}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black"
+                        placeholder="Gulberg"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!formData.city.trim() || !formData.zone.trim()) {
+                          toast.error('City and zone are required');
+                          return;
+                        }
+                        setStep(2);
+                      }}
+                      className="px-5 py-2.5 text-sm font-medium text-white bg-black rounded-md hover:bg-gray-800"
+                    >
+                      Next
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           )}
 

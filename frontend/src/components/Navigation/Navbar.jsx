@@ -1,6 +1,7 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import authService from '../../services/api/authService';
+import FairGigLogo from '../Brand/FairGigLogo';
 
 export default function Navbar({ user }) {
   const navigate = useNavigate();
@@ -40,23 +41,26 @@ export default function Navbar({ user }) {
   };
 
   return (
-    <nav className="bg-white shadow">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between h-16">
-          <div className="flex items-center space-x-8">
-            <Link to={dashboardPath} className="text-xl font-bold text-gray-900">
-              FairGig
+    <nav className="border-b border-zinc-200 bg-white/95 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-white/85">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className="flex h-16 items-center justify-between gap-4">
+          <div className="flex items-center gap-6">
+            <Link to={dashboardPath} className="inline-flex items-center" aria-label="FairGig dashboard">
+              <FairGigLogo
+                size={34}
+                wordmarkClassName="hidden text-xl font-bold tracking-tight text-zinc-900 sm:inline-block"
+              />
             </Link>
-            
-            <div className="hidden md:flex space-x-4">
+
+            <div className="hidden md:flex items-center gap-1">
               {navItems.map((item) => (
                 <Link
                   key={item.to}
                   to={item.to}
-                  className={`px-3 py-2 rounded-md text-sm font-medium ${
+                  className={`rounded-md px-3 py-2 text-sm font-medium transition-colors ${
                     location.pathname === item.to
-                      ? 'bg-gray-100 text-gray-900'
-                      : 'text-gray-700 hover:text-gray-900'
+                      ? 'bg-zinc-900 text-white'
+                      : 'text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900'
                   }`}
                 >
                   {item.label}
@@ -64,12 +68,12 @@ export default function Navbar({ user }) {
               ))}
             </div>
           </div>
-          
-          <div className="flex items-center space-x-4">
-            <span className="text-sm text-gray-600">{user?.email}</span>
+
+          <div className="flex items-center gap-3">
+            <span className="hidden max-w-[220px] truncate text-sm text-zinc-500 lg:block">{user?.email}</span>
             <button
               onClick={handleLogout}
-              className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700"
+              className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-700"
             >
               Logout
             </button>
