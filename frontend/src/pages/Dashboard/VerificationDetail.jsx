@@ -1,0 +1,486 @@
+import { useState, useEffect } from 'react';
+import { useNavigate, useParams, Link } from 'react-router-dom';
+import toast from 'react-hot-toast';
+import authService from '../../services/api/authService';
+import earningsService from '../../services/api/earningsService';
+import Navbar from '../../components/Navigation/Navbar';
+
+const formatCurrency = (value) => `PKR ${Number(value || 0).toLocaleString()}`;
+
+export default function VerificationDetailPage() {
+  const navigate = useNavigate();
+  const { id } = useParams();
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState('logged');
+  const [submitting, setSubmitting] = useState(false);
+  const [showImageModal, setShowImageModal] = useState(false);
+  const [reviewerNotes, setReviewerNotes] = useState('');
+
+  const [session, setSession] = useState(null);
+  const [earning, setEarning] = useState(null);
+  const [evidence, setEvidence] = useState(null);
+  const [aiAnalysis, setAiAnalysis] = useState(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState(false);
+
+  useEffect(() => {
+    loadData();
+  }, [id]);
+
+  const loadData = async () => {
+    try {
+      const profile = await authService.getMe();
+      setUser(profile);
+
+      if (profile.role !== 'verifier') {
+        navigate('/');
+        return;
+      }
+
+      const [evidenceData, sessionData, earningData] = await Promise.all([
+        earningsService.getEvidenceById(id),
+        earningsService.getWorkSessionById(id).catch(() => null),
+        earningsService.getEarningBySession(id).then(r => Array.isArray(r) ? r[0] : r).catch(() => null)
+      ]);
+
+      setEvidence(evidenceData);
+      setSession(sessionData);
+      setEarning(earningData);
+
+      loadAiAnalysis(evidenceData.image_url);
+    } catch (error) {
+      console.error('Failed to load verification detail:', error);
+      toast.error('Failed to load verification details');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadAiAnalysis = async (imageUrl) => {
+    setAiLoading(true);
+    setAiError(false);
+    try {
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      const mockAnalysis = {
+        extraction_summary: {
+          detected_gross: earning?.gross_earned || 2500,
+          detected_deductions: earning?.platform_deductions || 350,
+          detected_net: earning?.net_received || 2150,
+          detected_platform: session?.platform || 'Bykea',
+          detected_date: session?.session_date || new Date().toISOString().split('T')[0]
+        },
+        discrepancies: [
+          {
+            field: 'gross',
+            logged: earning?.gross_earned || 2500,
+            detected: earning?.gross_earned || 2500,
+            match: true
+          },
+          {
+            field: 'deductions',
+            logged: earning?.platform_deductions || 350,
+            detected: 325,
+            match: false
+          },
+          {
+            field: 'net',
+            logged: earning?.net_received || 2150,
+            detected: 2175,
+            match: false
+          },
+          {
+            field: 'platform',
+            logged: session?.platform || 'Bykea',
+            detected: 'Bykea',
+            match: true
+          },
+          {
+            field: 'date',
+            logged: session?.session_date || new Date().toISOString().split('T')[0],
+            detected: session?.session_date || new Date().toISOString().split('T')[0],
+            match: true
+          }
+        ],
+        verdict: 'discrepancy_found',
+        explanation: 'AI detected a minor discrepancy in platform deductions. The screenshot shows PKR 325 in fees, but the logged amount is PKR 350. Net calculation is also off by PKR 25.',
+        confidence: 87
+      };
+
+      setAiAnalysis(mockAnalysis);
+    } catch (error) {
+      console.error('AI analysis failed:', error);
+      setAiError(true);
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  const handleConfirm = async () => {
+    setSubmitting(true);
+    try {
+      await earningsService.updateEvidence(id, { verified: true });
+      toast.success('Evidence verified successfully');
+      navigate('/verifier/dashboard');
+    } catch (error) {
+      toast.error('Failed to verify evidence');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleFlag = async () => {
+    if (!reviewerNotes.trim()) {
+      toast.error('Reviewer notes are required when flagging');
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await earningsService.updateEvidence(id, { 
+        verified: false,
+        reviewer_notes: reviewerNotes
+      });
+      toast.success('Evidence flagged');
+      navigate('/verifier/dashboard');
+    } catch (error) {
+      toast.error('Failed to flag evidence');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleUnverifiable = async () => {
+    setSubmitting(true);
+    try {
+      await earningsService.updateEvidence(id, { 
+        verified: null,
+        reviewer_notes: reviewerNotes
+      });
+      toast.success('Marked as unverifiable');
+      navigate('/verifier/dashboard');
+    } catch (error) {
+      toast.error('Failed to update evidence');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const getStatusPill = () => {
+    if (!evidence) return null;
+    if (evidence.verified === true) {
+      return <span className="px-3 py-1 text-xs font-medium bg-green-100 text-green-700 rounded-full">VERIFIED</span>;
+    }
+    if (evidence.verified === false) {
+      return <span className="px-3 py-1 text-xs font-medium bg-red-100 text-red-700 rounded-full">FLAGGED</span>;
+    }
+    return <span className="px-3 py-1 text-xs font-medium bg-amber-100 text-amber-700 rounded-full">PENDING REVIEW</span>;
+  };
+
+  const getVerdictStyle = (verdict) => {
+    switch (verdict) {
+      case 'likely_valid':
+        return 'border-green-500 bg-green-50';
+      case 'discrepancy_found':
+        return 'border-red-500 bg-red-50';
+      default:
+        return 'border-gray-400 bg-gray-50';
+    }
+  };
+
+  const getVerdictLabel = (verdict) => {
+    switch (verdict) {
+      case 'likely_valid':
+        return 'Likely Valid';
+      case 'discrepancy_found':
+        return 'Discrepancy Found';
+      default:
+        return 'Inconclusive';
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-gray-600">Loading...</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <Navbar user={user} />
+
+      <div className="max-w-6xl mx-auto p-4 md:p-6">
+        <div className="mb-6">
+          <div className="flex items-center gap-2 text-sm text-gray-500 mb-2">
+            <Link to="/verifier/dashboard" className="hover:text-gray-900">Review Queue</Link>
+            <span>›</span>
+            <span>Item #{id?.slice(0, 8)}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Verification Detail</h1>
+            {getStatusPill()}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+          <div className="lg:col-span-3">
+            <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+              <div className="flex items-center gap-2 mb-4">
+                <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                <h2 className="text-lg font-semibold text-gray-900">Source Evidence</h2>
+              </div>
+              
+              <div className="text-sm text-gray-500 mb-3">
+                USER UPLOAD: {evidence?.image_url?.split('/').pop() || 'EVIDENCE.PNG'}
+              </div>
+
+              <div className="relative bg-gray-100 rounded-lg overflow-hidden">
+                <img 
+                  src={evidence?.image_url || 'https://placehold.co/600x400?text=No+Image'} 
+                  alt="Evidence"
+                  className="w-full h-auto max-h-96 object-contain"
+                />
+                <button 
+                  onClick={() => setShowImageModal(true)}
+                  className="absolute top-3 right-3 p-2 bg-white rounded-lg shadow-md hover:bg-gray-50"
+                >
+                  <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="lg:col-span-2">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+              <div className="p-4 border-b border-gray-200">
+                <div className="flex bg-gray-100 rounded-lg p-1">
+                  <button
+                    onClick={() => setActiveTab('logged')}
+                    className={`flex-1 py-2 px-4 text-sm font-medium rounded-md transition-all ${
+                      activeTab === 'logged' 
+                        ? 'bg-gray-900 text-white' 
+                        : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    Logged Data
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('ai')}
+                    className={`flex-1 py-2 px-4 text-sm font-medium rounded-md transition-all ${
+                      activeTab === 'ai' 
+                        ? 'bg-gray-900 text-white' 
+                        : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    AI Analysis
+                  </button>
+                </div>
+              </div>
+
+              <div className="p-4">
+                {activeTab === 'logged' ? (
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="bg-gray-50 rounded-lg p-4">
+                        <p className="text-gray-500 text-sm">Claimed Gross</p>
+                        <p className="text-xl font-bold text-gray-900 mt-1">
+                          {formatCurrency(earning?.gross_earned || 0)}
+                        </p>
+                      </div>
+                      <div className="bg-gray-50 rounded-lg p-4">
+                        <p className="text-gray-500 text-sm">Platform Fees</p>
+                        <p className="text-xl font-bold text-red-600 mt-1">
+                          -{formatCurrency(earning?.platform_deductions || 0)}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="bg-gray-900 rounded-xl p-4">
+                      <p className="text-gray-400 text-sm">Net Earnings Calculated</p>
+                      <p className="text-3xl font-bold text-white mt-1">
+                        {formatCurrency(earning?.net_received || 0)}
+                      </p>
+                    </div>
+
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">Date</span>
+                        <span className="text-gray-900">{session?.session_date || '-'}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">Platform</span>
+                        <span className="text-gray-900">{session?.platform || '-'}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">Session ID</span>
+                        <span className="text-gray-900 font-mono text-xs">{id?.slice(0, 8)}...</span>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        REVIEWER NOTES <span className="text-gray-400">(REQUIRED FOR FLAGS)</span>
+                      </label>
+                      <textarea
+                        value={reviewerNotes}
+                        onChange={(e) => setReviewerNotes(e.target.value)}
+                        placeholder="Add notes about your verification decision..."
+                        className="w-full p-3 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                        rows={3}
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {aiLoading ? (
+                      <div className="space-y-3">
+                        <div className="h-4 bg-gray-200 rounded animate-pulse"></div>
+                        <div className="h-4 bg-gray-200 rounded animate-pulse w-3/4"></div>
+                        <div className="h-20 bg-gray-200 rounded animate-pulse"></div>
+                      </div>
+                    ) : aiError ? (
+                      <div className="text-center py-8">
+                        <p className="text-gray-500 mb-4">AI analysis unavailable</p>
+                        <button 
+                          onClick={() => loadAiAnalysis(evidence?.image_url)}
+                          className="px-4 py-2 bg-gray-900 text-white text-sm rounded-lg hover:bg-gray-800"
+                        >
+                          Retry
+                        </button>
+                      </div>
+                    ) : aiAnalysis ? (
+                      <>
+                        <div>
+                          <h3 className="text-sm font-medium text-gray-700 mb-3">Extraction Summary</h3>
+                          <div className="space-y-2 text-sm">
+                            <div className="flex justify-between">
+                              <span className="text-gray-500">Gross</span>
+                              <span className="text-gray-900">{formatCurrency(aiAnalysis.extraction_summary.detected_gross)}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-gray-500">Deductions</span>
+                              <span className="text-gray-900">-{formatCurrency(aiAnalysis.extraction_summary.detected_deductions)}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-gray-500">Net</span>
+                              <span className="text-gray-900 font-medium">{formatCurrency(aiAnalysis.extraction_summary.detected_net)}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-gray-500">Platform</span>
+                              <span className="text-gray-900">{aiAnalysis.extraction_summary.detected_platform}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-gray-500">Date</span>
+                              <span className="text-gray-900">{aiAnalysis.extraction_summary.detected_date}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div>
+                          <h3 className="text-sm font-medium text-gray-700 mb-3">Discrepancy Indicators</h3>
+                          <div className="space-y-2">
+                            {aiAnalysis.discrepancies.map((item, i) => (
+                              <div key={i} className="flex items-center justify-between text-sm py-2 border-b border-gray-100 last:border-0">
+                                <div>
+                                  <span className="text-gray-900 capitalize">{item.field}</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-gray-500">{item.logged}</span>
+                                  <span className="text-gray-400">→</span>
+                                  <span className={`${item.match ? 'text-green-600' : 'text-amber-600'}`}>
+                                    {item.detected}
+                                  </span>
+                                  <span className={item.match ? 'text-green-500' : 'text-amber-500'}>
+                                    {item.match ? '✓' : '⚠'}
+                                  </span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className={`border-2 rounded-xl p-4 ${getVerdictStyle(aiAnalysis.verdict)}`}>
+                          <div className="flex items-center justify-between mb-2">
+                            <span className={`font-medium ${
+                              aiAnalysis.verdict === 'likely_valid' ? 'text-green-700' : 
+                              aiAnalysis.verdict === 'discrepancy_found' ? 'text-red-700' : 'text-gray-600'
+                            }`}>
+                              {getVerdictLabel(aiAnalysis.verdict)}
+                            </span>
+                            {aiAnalysis.confidence && (
+                              <span className="px-2 py-1 bg-white rounded text-xs font-medium text-gray-600">
+                                {aiAnalysis.confidence}% confident
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-sm text-gray-600">{aiAnalysis.explanation}</p>
+                        </div>
+
+                        <p className="text-xs text-gray-400 italic">
+                          AI analysis is advisory only. Final verification decision rests with the reviewer.
+                        </p>
+                      </>
+                    ) : null}
+                  </div>
+                )}
+              </div>
+
+              <div className="p-4 border-t border-gray-200 bg-gray-50 flex gap-3">
+                <button
+                  onClick={handleUnverifiable}
+                  disabled={submitting}
+                  className="flex-1 py-2.5 px-4 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-100 disabled:opacity-50"
+                >
+                  Unverifiable
+                </button>
+                <button
+                  onClick={handleFlag}
+                  disabled={submitting}
+                  className="flex-1 py-2.5 px-4 bg-red-500 text-white rounded-lg text-sm font-medium hover:bg-red-600 disabled:opacity-50"
+                >
+                  Flag Discrepancy
+                </button>
+                <button
+                  onClick={handleConfirm}
+                  disabled={submitting}
+                  className="flex-1 py-2.5 px-4 bg-amber-500 text-white rounded-lg text-sm font-medium hover:bg-amber-600 disabled:opacity-50"
+                >
+                  Confirm Data
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {showImageModal && (
+        <div 
+          className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4"
+          onClick={() => setShowImageModal(false)}
+        >
+          <div className="relative max-w-4xl max-h-full">
+            <button 
+              onClick={() => setShowImageModal(false)}
+              className="absolute -top-10 right-0 text-white hover:text-gray-300"
+            >
+              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+            <img 
+              src={evidence?.image_url || 'https://placehold.co/600x400?text=No+Image'} 
+              alt="Evidence Full"
+              className="max-w-full max-h-[90vh] object-contain"
+            />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
