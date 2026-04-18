@@ -17,6 +17,32 @@ function validateUuidParam(req, res, next) {
   next();
 }
 
+function validateWorkerIdParam(req, res, next) {
+  const { worker_id } = req.params;
+  if (!worker_id || !isMongoObjectId(worker_id)) {
+    return res.status(400).json({
+      error: 'worker_id must be a valid auth-service user id (Mongo ObjectId string)'
+    });
+  }
+  next();
+}
+
+function validateWorkerAndSessionParams(req, res, next) {
+  const { worker_id, session_id } = req.params;
+
+  if (!worker_id || !isMongoObjectId(worker_id)) {
+    return res.status(400).json({
+      error: 'worker_id must be a valid auth-service user id (Mongo ObjectId string)'
+    });
+  }
+
+  if (!session_id || !isUuid(session_id)) {
+    return res.status(400).json({ error: 'session_id must be a UUID' });
+  }
+
+  next();
+}
+
 function validateCreateWorkSession(req, res, next) {
   const {
     worker_id,
@@ -50,6 +76,65 @@ function validateCreateWorkSession(req, res, next) {
 
   if (!Number.isInteger(trips_completed) || trips_completed < 0) {
     return res.status(400).json({ error: 'trips_completed must be a non-negative integer' });
+  }
+
+  next();
+}
+
+function validateBulkWorkSessions(req, res, next) {
+  const { items } = req.body || {};
+
+  if (!Array.isArray(items) || items.length === 0) {
+    return res.status(400).json({ error: 'items must be a non-empty array' });
+  }
+
+  const seenSessionIds = new Set();
+
+  for (let index = 0; index < items.length; index += 1) {
+    const item = items[index] || {};
+    const {
+      session_id,
+      worker_id,
+      platform,
+      session_date,
+      start_time,
+      end_time,
+      hours_worked,
+      trips_completed
+    } = item;
+
+    if (!session_id || !worker_id || !platform || !session_date || !start_time || !end_time) {
+      return res.status(400).json({
+        error: `items[${index}] must include session_id, worker_id, platform, session_date, start_time and end_time`
+      });
+    }
+
+    if (!isUuid(session_id)) {
+      return res.status(400).json({ error: `items[${index}].session_id must be a UUID` });
+    }
+
+    if (seenSessionIds.has(session_id)) {
+      return res.status(400).json({ error: `Duplicate session_id in bulk payload: ${session_id}` });
+    }
+    seenSessionIds.add(session_id);
+
+    if (typeof worker_id !== 'string' || !isMongoObjectId(worker_id)) {
+      return res.status(400).json({
+        error: `items[${index}].worker_id must be a valid auth-service user id (Mongo ObjectId string)`
+      });
+    }
+
+    if (typeof platform !== 'string' || platform.trim().length === 0) {
+      return res.status(400).json({ error: `items[${index}].platform must be a non-empty string` });
+    }
+
+    if (typeof hours_worked !== 'number' || hours_worked < 0) {
+      return res.status(400).json({ error: `items[${index}].hours_worked must be a non-negative number` });
+    }
+
+    if (!Number.isInteger(trips_completed) || trips_completed < 0) {
+      return res.status(400).json({ error: `items[${index}].trips_completed must be a non-negative integer` });
+    }
   }
 
   next();
@@ -137,6 +222,70 @@ function validateCreateEarning(req, res, next) {
   next();
 }
 
+function validateBulkEarnings(req, res, next) {
+  const { items } = req.body || {};
+
+  if (!Array.isArray(items) || items.length === 0) {
+    return res.status(400).json({ error: 'items must be a non-empty array' });
+  }
+
+  const seenSessionIds = new Set();
+
+  for (let index = 0; index < items.length; index += 1) {
+    const item = items[index] || {};
+    const { worker_id, session_id, gross_earned, platform_deductions, net_received } = item;
+
+    if (!worker_id || !session_id || gross_earned === undefined || platform_deductions === undefined || net_received === undefined) {
+      return res.status(400).json({
+        error: `items[${index}] must include worker_id, session_id, gross_earned, platform_deductions and net_received`
+      });
+    }
+
+    if (typeof worker_id !== 'string' || !isMongoObjectId(worker_id)) {
+      return res.status(400).json({
+        error: `items[${index}].worker_id must be a valid auth-service user id (Mongo ObjectId string)`
+      });
+    }
+
+    if (!isUuid(session_id)) {
+      return res.status(400).json({ error: `items[${index}].session_id must be a UUID` });
+    }
+
+    if (seenSessionIds.has(session_id)) {
+      return res.status(400).json({ error: `Duplicate session_id in bulk payload: ${session_id}` });
+    }
+    seenSessionIds.add(session_id);
+
+    const grossEarnedValue = Number(gross_earned);
+    const platformDeductionsValue = Number(platform_deductions);
+    const netReceivedValue = Number(net_received);
+
+    if (!Number.isFinite(grossEarnedValue) || grossEarnedValue < 0) {
+      return res.status(400).json({ error: `items[${index}].gross_earned must be a non-negative number` });
+    }
+
+    if (!Number.isFinite(platformDeductionsValue) || platformDeductionsValue < 0) {
+      return res.status(400).json({ error: `items[${index}].platform_deductions must be a non-negative number` });
+    }
+
+    if (!Number.isFinite(netReceivedValue) || netReceivedValue < 0) {
+      return res.status(400).json({ error: `items[${index}].net_received must be a non-negative number` });
+    }
+
+    if (platformDeductionsValue > grossEarnedValue) {
+      return res.status(400).json({
+        error: `items[${index}].platform_deductions cannot be greater than gross_earned`
+      });
+    }
+
+    if (netReceivedValue > grossEarnedValue) {
+      return res.status(400).json({ error: `items[${index}].net_received cannot be greater than gross_earned` });
+    }
+  }
+
+  next();
+}
+
 function validateUpdateEarning(req, res, next) {
   const allowed = ['session_id', 'gross_earned', 'platform_deductions', 'net_received'];
   const keys = Object.keys(req.body || {});
@@ -199,7 +348,7 @@ function validateUpdateEarning(req, res, next) {
 }
 
 function validateCreateEvidence(req, res, next) {
-  const { worker_id, session_id, image_url } = req.body;
+  const { worker_id, session_id, image_url, verified } = req.body;
 
   if (!worker_id || !session_id || !image_url) {
     return res.status(400).json({ error: 'worker_id, session_id and image_url are required' });
@@ -219,11 +368,15 @@ function validateCreateEvidence(req, res, next) {
     return res.status(400).json({ error: 'image_url must be a non-empty string' });
   }
 
+  if (verified !== undefined && typeof verified !== 'boolean') {
+    return res.status(400).json({ error: 'verified must be a boolean value' });
+  }
+
   next();
 }
 
 function validateUpdateEvidence(req, res, next) {
-  const allowed = ['worker_id', 'session_id', 'image_url'];
+  const allowed = ['worker_id', 'session_id', 'image_url', 'verified'];
   const keys = Object.keys(req.body || {});
 
   if (keys.length === 0) {
@@ -249,14 +402,22 @@ function validateUpdateEvidence(req, res, next) {
     return res.status(400).json({ error: 'image_url must be a non-empty string' });
   }
 
+  if (req.body.verified !== undefined && typeof req.body.verified !== 'boolean') {
+    return res.status(400).json({ error: 'verified must be a boolean value' });
+  }
+
   next();
 }
 
 module.exports = {
   validateUuidParam,
+  validateWorkerIdParam,
+  validateWorkerAndSessionParams,
   validateCreateWorkSession,
+  validateBulkWorkSessions,
   validateUpdateWorkSession,
   validateCreateEarning,
+  validateBulkEarnings,
   validateUpdateEarning,
   validateCreateEvidence,
   validateUpdateEvidence

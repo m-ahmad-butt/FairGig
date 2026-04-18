@@ -1,11 +1,41 @@
 const evidenceRepository = require('../repositories/evidenceRepository');
 const workSessionRepository = require('../repositories/workSessionRepository');
 const { sendBadRequest, sendNotFound } = require('../utils/response');
+const { serializeEarning } = require('../utils/serializer');
+
+const AUTH_SERVICE_BASE_URL = process.env.AUTH_SERVICE_URL || 'http://auth-service:4001';
+
+async function fetchWorkerFromAuthService(workerId) {
+  const bases = [AUTH_SERVICE_BASE_URL, 'http://localhost:4001'];
+  const uniqueBases = [...new Set(bases.filter(Boolean))];
+
+  for (const baseUrl of uniqueBases) {
+    try {
+      const url = `${baseUrl}/api/auth/workers/on-platform?worker_id=${encodeURIComponent(workerId)}`;
+      const response = await fetch(url);
+
+      if (response.status === 404) {
+        return null;
+      }
+
+      if (!response.ok) {
+        continue;
+      }
+
+      const payload = await response.json();
+      return payload?.worker || null;
+    } catch (error) {
+      continue;
+    }
+  }
+
+  return null;
+}
 
 class EvidenceController {
   async create(req, res) {
     try {
-      const { worker_id, session_id, image_url } = req.body;
+      const { worker_id, session_id, image_url, verified } = req.body;
 
       const session = await workSessionRepository.findById(session_id);
       if (!session) {
@@ -24,7 +54,8 @@ class EvidenceController {
       const created = await evidenceRepository.create({
         worker_id,
         session_id,
-        image_url: image_url.trim()
+        image_url: image_url.trim(),
+        ...(verified !== undefined ? { verified } : {})
       });
 
       return res.status(201).json(created);
@@ -44,11 +75,17 @@ class EvidenceController {
 
   async list(req, res) {
     try {
-      const { worker_id, session_id } = req.query;
+      const { worker_id, session_id, verified } = req.query;
       const where = {};
 
       if (worker_id) where.worker_id = worker_id;
       if (session_id) where.session_id = session_id;
+      if (verified !== undefined) {
+        if (verified !== 'true' && verified !== 'false') {
+          return sendBadRequest(res, 'verified query param must be true or false');
+        }
+        where.verified = verified === 'true';
+      }
 
       const evidences = await evidenceRepository.findMany(where);
       return res.json(evidences);
@@ -68,6 +105,82 @@ class EvidenceController {
       return res.json(evidence);
     } catch (error) {
       console.error('Get evidence error:', error);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+
+  async getByWorkerId(req, res) {
+    try {
+      const evidences = await evidenceRepository.findByWorkerId(req.params.worker_id);
+      return res.json({
+        worker_id: req.params.worker_id,
+        count: evidences.length,
+        evidences
+      });
+    } catch (error) {
+      console.error('Get evidences by worker_id error:', error);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+
+  async getByWorkerAndSession(req, res) {
+    try {
+      const { worker_id, session_id } = req.params;
+      const evidence = await evidenceRepository.findByWorkerAndSession(worker_id, session_id);
+
+      if (!evidence) {
+        return sendNotFound(res, 'Evidence not found for provided worker_id and session_id');
+      }
+
+      return res.json({
+        evidence,
+        session: evidence.session || null,
+        earning: evidence.session?.earning ? serializeEarning(evidence.session.earning) : null
+      });
+    } catch (error) {
+      console.error('Get evidence by worker_id and session_id error:', error);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+
+  async listUnverifiedDetailed(req, res) {
+    try {
+      const evidences = await evidenceRepository.findUnverifiedWithRelations();
+      const uniqueWorkerIds = [...new Set(evidences.map((item) => item.worker_id).filter(Boolean))];
+
+      const workerEntries = await Promise.all(
+        uniqueWorkerIds.map(async (workerId) => {
+          const worker = await fetchWorkerFromAuthService(workerId);
+          return [workerId, worker];
+        })
+      );
+
+      const workerMap = Object.fromEntries(workerEntries);
+
+      const items = evidences.map((item) => {
+        const session = item.session || null;
+        const earning = session?.earning ? serializeEarning(session.earning) : null;
+        return {
+          evidence: {
+            id: item.id,
+            worker_id: item.worker_id,
+            session_id: item.session_id,
+            image_url: item.image_url,
+            verified: item.verified,
+            created_at: item.created_at
+          },
+          session,
+          earning,
+          worker: workerMap[item.worker_id] || null
+        };
+      });
+
+      return res.json({
+        count: items.length,
+        items
+      });
+    } catch (error) {
+      console.error('List unverified evidences with details error:', error);
       return res.status(500).json({ error: 'Internal server error' });
     }
   }
@@ -102,6 +215,7 @@ class EvidenceController {
       if (req.body.worker_id !== undefined) updateData.worker_id = req.body.worker_id;
       if (req.body.session_id !== undefined) updateData.session_id = req.body.session_id;
       if (req.body.image_url !== undefined) updateData.image_url = req.body.image_url.trim();
+      if (req.body.verified !== undefined) updateData.verified = req.body.verified;
 
       const updated = await evidenceRepository.update(req.params.id, updateData);
       return res.json(updated);

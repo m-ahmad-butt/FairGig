@@ -39,6 +39,56 @@ class WorkSessionController {
     }
   }
 
+  async bulkCreate(req, res) {
+    try {
+      const { items } = req.body;
+
+      const createData = items.map((item, index) => {
+        const startTime = parseTimestamp(item.start_time, `items[${index}].start_time`);
+        const endTime = parseTimestamp(item.end_time, `items[${index}].end_time`);
+
+        if (endTime <= startTime) {
+          throw {
+            statusCode: 400,
+            message: `items[${index}].end_time must be after items[${index}].start_time`
+          };
+        }
+
+        return {
+          id: item.session_id,
+          worker_id: item.worker_id,
+          platform: item.platform.trim(),
+          session_date: parseDateOnly(item.session_date, `items[${index}].session_date`),
+          start_time: startTime,
+          end_time: endTime,
+          hours_worked: item.hours_worked,
+          trips_completed: item.trips_completed
+        };
+      });
+
+      const created = await workSessionRepository.createMany(createData);
+
+      return res.status(201).json({
+        count: created.length,
+        sessions: created
+      });
+    } catch (error) {
+      if (error?.code === 'P2002') {
+        return sendBadRequest(
+          res,
+          'Bulk insert conflict: duplicate session_id or one work session per worker per session_date already exists'
+        );
+      }
+
+      if (error?.statusCode === 400) {
+        return sendBadRequest(res, error.message);
+      }
+
+      console.error('Bulk create work sessions error:', error);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+
   async list(req, res) {
     try {
       const { worker_id, platform, session_date } = req.query;
@@ -69,6 +119,20 @@ class WorkSessionController {
       return res.json(session);
     } catch (error) {
       console.error('Get work session error:', error);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+
+  async getByWorkerId(req, res) {
+    try {
+      const sessions = await workSessionRepository.findByWorkerId(req.params.worker_id);
+      return res.json({
+        worker_id: req.params.worker_id,
+        count: sessions.length,
+        sessions
+      });
+    } catch (error) {
+      console.error('Get work sessions by worker_id error:', error);
       return res.status(500).json({ error: 'Internal server error' });
     }
   }

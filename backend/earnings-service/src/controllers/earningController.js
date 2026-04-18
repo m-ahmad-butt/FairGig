@@ -41,6 +41,70 @@ class EarningController {
     }
   }
 
+  async bulkCreate(req, res) {
+    try {
+      const { items } = req.body;
+      const uniqueSessionIds = [...new Set(items.map((item) => item.session_id))];
+
+      const sessions = await workSessionRepository.findByIds(uniqueSessionIds);
+      const sessionMap = new Map(sessions.map((session) => [session.id, session]));
+
+      const missingSessionIds = uniqueSessionIds.filter((sessionId) => !sessionMap.has(sessionId));
+      if (missingSessionIds.length > 0) {
+        return sendBadRequest(
+          res,
+          `Work session not found for session_id values: ${missingSessionIds.join(', ')}`
+        );
+      }
+
+      for (let index = 0; index < items.length; index += 1) {
+        const item = items[index];
+        const session = sessionMap.get(item.session_id);
+
+        if (session.worker_id !== item.worker_id) {
+          return sendBadRequest(
+            res,
+            `items[${index}].worker_id must match owner of session_id ${item.session_id}`
+          );
+        }
+      }
+
+      const existingEarnings = await earningRepository.findBySessionIds(uniqueSessionIds);
+      if (existingEarnings.length > 0) {
+        const occupiedSessionIds = existingEarnings.map((entry) => entry.session_id);
+        return sendBadRequest(
+          res,
+          `Only one earning is allowed per work session. Existing session_id values: ${occupiedSessionIds.join(', ')}`
+        );
+      }
+
+      const createData = items.map((item) => ({
+        session_id: item.session_id,
+        gross_earned: new Prisma.Decimal(item.gross_earned),
+        platform_deductions: new Prisma.Decimal(item.platform_deductions),
+        net_received: new Prisma.Decimal(item.net_received)
+      }));
+
+      const created = await earningRepository.createMany(createData);
+
+      return res.status(201).json({
+        count: created.length,
+        earnings: serializeEarningList(created)
+      });
+    } catch (error) {
+      if (error?.statusCode === 400) {
+        return sendBadRequest(res, error.message);
+      }
+
+      if (error?.code === 'P2002') {
+        return sendBadRequest(res, 'Only one earning is allowed per work session');
+      }
+
+      console.error('Bulk create earnings error:', error);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+
   async list(req, res) {
     try {
       const { session_id, worker_id } = req.query;
@@ -67,6 +131,25 @@ class EarningController {
       return res.json(serializeEarning(earning));
     } catch (error) {
       console.error('Get earning error:', error);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+
+  async getByWorkerAndSession(req, res) {
+    try {
+      const { worker_id, session_id } = req.params;
+      const earning = await earningRepository.findByWorkerAndSession(worker_id, session_id);
+
+      if (!earning) {
+        return sendNotFound(res, 'Earning not found for provided worker_id and session_id');
+      }
+
+      return res.json({
+        earning: serializeEarning(earning),
+        session: earning.session
+      });
+    } catch (error) {
+      console.error('Get earning by worker_id and session_id error:', error);
       return res.status(500).json({ error: 'Internal server error' });
     }
   }

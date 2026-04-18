@@ -5,6 +5,12 @@ class WorkSessionRepository {
     return prisma.workSession.create({ data });
   }
 
+  async createMany(items) {
+    return prisma.$transaction(
+      items.map((data) => prisma.workSession.create({ data }))
+    );
+  }
+
   async findMany(filters) {
     return prisma.workSession.findMany({
       where: filters,
@@ -15,7 +21,23 @@ class WorkSessionRepository {
   async findById(id) {
     return prisma.workSession.findUnique({
       where: { id },
-      include: { earning: true, evidence: true }
+      include: { earning: true, evidance: true }
+    });
+  }
+
+  async findByWorkerId(worker_id) {
+    return prisma.workSession.findMany({
+      where: { worker_id },
+      include: { earning: true, evidance: true },
+      orderBy: { created_at: 'desc' }
+    });
+  }
+
+  async findByIds(ids) {
+    return prisma.workSession.findMany({
+      where: {
+        id: { in: ids }
+      }
     });
   }
 
@@ -32,7 +54,7 @@ class WorkSessionRepository {
 
   async deleteWithEarnings(id) {
     return prisma.$transaction([
-      prisma.evidence.deleteMany({ where: { session_id: id } }),
+      prisma.evidance.deleteMany({ where: { session_id: id } }),
       prisma.earning.deleteMany({ where: { session_id: id } }),
       prisma.workSession.delete({ where: { id } })
     ]);

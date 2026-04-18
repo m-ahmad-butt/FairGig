@@ -50,9 +50,11 @@ model Evidance {
   worker_id  String
   session_id String      @unique
   image_url  String
+  verified   Boolean     @default(false)
   created_at DateTime    @default(now())
   session    WorkSession @relation(fields: [session_id], references: [id])
 
   @@index([worker_id])
+  @@index([verified])
   @@map("evidance")
 }
