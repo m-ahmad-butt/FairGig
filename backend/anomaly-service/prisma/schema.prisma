@@ -12,3 +12,30 @@ model HealthPing {
   service   String
   createdAt DateTime @default(now())
 }
+
+model WorkerEarningAnomaly {
+  id                         String   @id @default(auto()) @map("_id") @db.ObjectId
+  worker_id                  String
+  session_id                 String
+  evidence_id                String?
+  image_url                  String?
+  verified                   Boolean  @default(true)
+  anomaly_detected           Boolean
+  triggered_calculations     Json
+  primary_trigger            String?
+  explanation                String
+  commission_spike           Json
+  wage_collapse              Json
+  ghost_deduction            Json
+  worker                     Json?
+  current_shift              Json
+  historical_shifts_analyzed Int
+  generated_at               DateTime @default(now())
+  created_at                 DateTime @default(now())
+  updated_at                 DateTime @updatedAt
+
+  @@index([worker_id])
+  @@index([session_id])
+  @@unique([worker_id, session_id])
+  @@map("worker_earning_anomalies")
+}

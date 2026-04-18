@@ -2,8 +2,13 @@ const evidenceRepository = require('../repositories/evidenceRepository');
 const workSessionRepository = require('../repositories/workSessionRepository');
 const { sendBadRequest, sendNotFound } = require('../utils/response');
 const { serializeEarning } = require('../utils/serializer');
+const { triggerAnomalyDetection } = require('../utils/anomalyServiceClient');
 
 const AUTH_SERVICE_BASE_URL = process.env.AUTH_SERVICE_URL || 'http://auth-service:4001';
+
+function shouldTriggerAnomalyDetection(previousVerified, nextVerified) {
+  return previousVerified !== true && nextVerified === true;
+}
 
 async function fetchWorkerFromAuthService(workerId) {
   const bases = [AUTH_SERVICE_BASE_URL, 'http://localhost:4001'];
@@ -282,6 +287,22 @@ class EvidenceController {
       if (req.body.verified !== undefined) updateData.verified = req.body.verified;
 
       const updated = await evidenceRepository.update(req.params.id, updateData);
+
+      if (shouldTriggerAnomalyDetection(existing.verified, updated.verified)) {
+        triggerAnomalyDetection({
+          worker_id: updated.worker_id,
+          session_id: updated.session_id,
+          evidence_id: updated.id
+        }).catch((triggerError) => {
+          console.error('Anomaly trigger failed after evidence update:', {
+            evidence_id: updated.id,
+            worker_id: updated.worker_id,
+            session_id: updated.session_id,
+            error: triggerError?.message || triggerError
+          });
+        });
+      }
+
       return res.json(updated);
     } catch (error) {
       if (error?.statusCode === 400) {
@@ -307,6 +328,21 @@ class EvidenceController {
       const updated = await evidenceRepository.update(req.params.id, {
         verified: req.body.verified
       });
+
+      if (shouldTriggerAnomalyDetection(existing.verified, updated.verified)) {
+        triggerAnomalyDetection({
+          worker_id: updated.worker_id,
+          session_id: updated.session_id,
+          evidence_id: updated.id
+        }).catch((triggerError) => {
+          console.error('Anomaly trigger failed after verified update:', {
+            evidence_id: updated.id,
+            worker_id: updated.worker_id,
+            session_id: updated.session_id,
+            error: triggerError?.message || triggerError
+          });
+        });
+      }
 
       return res.json({
         message: 'Evidence verification status updated successfully',
