@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import earningsService from '../../services/api/earningsService';
 import authService from '../../services/api/authService';
@@ -6,7 +6,7 @@ import { Badge } from '../../components/ui/badge';
 import { Button } from '../../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
 import { Input } from '../../components/ui/input';
-import { getPlatformLabel } from '../../utils/workerProfileOptions';
+import { getPlatformOptions } from '../../utils/workerProfileOptions';
 
 const ERROR_FIELD_CLASS = 'border-red-300 focus-visible:ring-red-600';
 
@@ -34,24 +34,22 @@ export default function SingleSessionEntry({ onComplete }) {
 
   const user = authService.getUser();
   const workerId = user?.id || user?._id;
-  const selectedPlatformName = user?.platform
-    ? getPlatformLabel(user?.category, user.platform).trim()
-    : '';
+  const userCategory = String(user?.category || '').toLowerCase() === 'rider' ? 'rider' : 'freelance';
+  const categoryLabel = userCategory === 'rider' ? 'Rider' : 'Freelancer';
+  const platformOptions = useMemo(() => getPlatformOptions(userCategory), [userCategory]);
 
   useEffect(() => {
-    if (!selectedPlatformName) {
-      return;
-    }
+    setFormData((prev) => {
+      if (platformOptions.some((option) => option.value === prev.platform)) {
+        return prev;
+      }
 
-    setFormData((prev) =>
-      prev.platform === selectedPlatformName
-        ? prev
-        : {
-            ...prev,
-            platform: selectedPlatformName
-          }
-    );
-  }, [selectedPlatformName]);
+      return {
+        ...prev,
+        platform: platformOptions[0]?.value || ''
+      };
+    });
+  }, [platformOptions]);
 
   useEffect(() => {
     const gross = parseFloat(formData.grossEarned) || 0;
@@ -62,8 +60,11 @@ export default function SingleSessionEntry({ onComplete }) {
 
   const validateCard1 = () => {
     const errs = {};
-    if (!selectedPlatformName) errs.platform = 'Your profile platform is missing. Please update profile first.';
-    if (!formData.platform) errs.platform = 'Select a platform';
+    if (!formData.platform) {
+      errs.platform = 'Select a platform';
+    } else if (!platformOptions.some((option) => option.value === formData.platform)) {
+      errs.platform = 'Select a valid platform for your category';
+    }
     if (!formData.sessionDate) errs.sessionDate = 'Select a date';
     if (!formData.startTime) errs.startTime = 'Select start time';
     if (!formData.endTime) errs.endTime = 'Select end time';
@@ -248,12 +249,19 @@ export default function SingleSessionEntry({ onComplete }) {
           <CardContent className="space-y-4">
             <div className="space-y-2">
               <label className="text-sm font-medium text-zinc-700">Platform</label>
-              <Input
-                type="text"
-                value={formData.platform || 'Not set'}
-                readOnly
-                className={`bg-zinc-100 text-zinc-700 ${errors.platform ? ERROR_FIELD_CLASS : ''}`}
-              />
+              <select
+                value={formData.platform}
+                onChange={(event) => setFormData({ ...formData, platform: event.target.value })}
+                className={`flex h-10 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-900 focus-visible:ring-offset-2 ${errors.platform ? ERROR_FIELD_CLASS : ''}`}
+              >
+                <option value="">Select platform</option>
+                {platformOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-zinc-500">Showing {categoryLabel} platforms from your profile category.</p>
               {errors.platform && <p className="text-xs text-red-600">{errors.platform}</p>}
             </div>
 

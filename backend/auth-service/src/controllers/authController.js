@@ -528,6 +528,7 @@ class AuthController {
       }
 
       const updateData = {};
+      const isWorker = req.user.role === ROLES.WORKER;
 
       if (name && name.trim() !== user.name) {
         updateData.name = name.trim();
@@ -552,17 +553,21 @@ class AuthController {
 
       let nextCategory = user.category;
       if (category !== undefined) {
-        if (req.user.role !== ROLES.WORKER) {
-          return res.status(403).json({ error: 'Only workers can set category' });
-        }
+        if (!isWorker) {
+          if (category !== null) {
+            return res.status(403).json({ error: 'Only workers can set category' });
+          }
 
-        if (user.category && category !== user.category) {
-          return res.status(400).json({ error: 'category cannot be changed once selected' });
-        }
+          updateData.category = null;
+        } else {
+          if (user.category && category !== user.category) {
+            return res.status(400).json({ error: 'category cannot be changed once selected' });
+          }
 
-        if (!user.category) {
-          nextCategory = category;
-          updateData.category = category;
+          if (!user.category) {
+            nextCategory = category;
+            updateData.category = category;
+          }
         }
       }
 
@@ -575,11 +580,7 @@ class AuthController {
         latitude !== undefined ||
         longitude !== undefined;
 
-      if (workerProfileFieldsProvided && req.user.role !== ROLES.WORKER) {
-        return res.status(403).json({ error: 'Only workers can update location, platform and worker type fields' });
-      }
-
-      if (req.user.role === ROLES.WORKER) {
+      if (isWorker) {
         if (zone !== undefined) {
           updateData.zone = this.normalizeOptionalString(zone);
         }
@@ -613,6 +614,50 @@ class AuthController {
           if (workerUpdateError) {
             return res.status(400).json({ error: workerUpdateError });
           }
+        }
+      } else if (workerProfileFieldsProvided) {
+        const hasNonWorkerNonNullValue = [
+          zone,
+          city,
+          platform,
+          vehicleType,
+          freelancerType,
+          latitude,
+          longitude
+        ].some((value) => value !== undefined && value !== null);
+
+        if (hasNonWorkerNonNullValue) {
+          return res.status(403).json({
+            error: 'Only workers can update non-null location, platform and worker type fields'
+          });
+        }
+
+        if (zone !== undefined) {
+          updateData.zone = null;
+        }
+
+        if (city !== undefined) {
+          updateData.city = null;
+        }
+
+        if (platform !== undefined) {
+          updateData.platform = null;
+        }
+
+        if (vehicleType !== undefined) {
+          updateData.vehicleType = null;
+        }
+
+        if (freelancerType !== undefined) {
+          updateData.freelancerType = null;
+        }
+
+        if (latitude !== undefined) {
+          updateData.latitude = null;
+        }
+
+        if (longitude !== undefined) {
+          updateData.longitude = null;
         }
       }
 

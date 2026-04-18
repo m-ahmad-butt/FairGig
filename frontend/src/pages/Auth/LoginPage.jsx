@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import authService from '../../services/api/authService';
 import { isWorkerProfileComplete } from '../../utils/workerProfileOptions';
+import FairGigLogo from '../../components/Brand/FairGigLogo';
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -10,6 +11,7 @@ export default function LoginPage() {
     email: '',
     password: ''
   });
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const getDashboardPath = (role) => {
@@ -52,11 +54,12 @@ export default function LoginPage() {
 
       // Check if onboarding is needed
       const user = result.user;
-      const locationMissing = !user.city || !user.zone;
-      const workerProfileMissing = !isWorkerProfileComplete(user);
+      const isWorkerRole = String(user.role || '').toLowerCase() === 'worker';
+      const locationMissing = isWorkerRole && (!user.city || !user.zone);
+      const workerProfileMissing = isWorkerRole && !isWorkerProfileComplete(user);
       // Login is only allowed for verified users; treat missing emailVerified as verified.
       const emailNotVerified = user.emailVerified === false;
-      const needsOnboarding = emailNotVerified || locationMissing || workerProfileMissing;
+      const needsOnboarding = isWorkerRole && (emailNotVerified || locationMissing || workerProfileMissing);
       
       if (needsOnboarding) {
         navigate('/onboarding', { state: { email: formData.email, role: user.role } });
@@ -74,10 +77,8 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-white px-4 py-12">
       <div className="max-w-md w-full">
         <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-black rounded-xl flex items-center justify-center mx-auto mb-4">
-            <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
+          <div className="mx-auto mb-4 flex justify-center">
+            <FairGigLogo size={64} showWordmark={false} />
           </div>
           <h2 className="text-2xl font-bold text-gray-900">Welcome back</h2>
           <p className="mt-2 text-gray-600">Sign in to your FairGig account</p>
@@ -104,16 +105,45 @@ export default function LoginPage() {
             <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
               Password
             </label>
-            <input
-              id="password"
-              name="password"
-              type="password"
-              required
-              value={formData.password}
-              onChange={handleChange}
-              className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent transition-all"
-              placeholder="Enter your password"
-            />
+            <div className="relative">
+              <input
+                id="password"
+                name="password"
+                type={showPassword ? 'text' : 'password'}
+                required
+                value={formData.password}
+                onChange={handleChange}
+                className="w-full px-4 py-3 pr-12 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent transition-all"
+                placeholder="Enter your password"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((prev) => !prev)}
+                className="absolute inset-y-0 right-0 flex items-center px-3 text-gray-500 hover:text-gray-800 transition-colors"
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+              >
+                {showPassword ? (
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={1.8}
+                      d="M3 3l18 18M10.73 5.08A10.45 10.45 0 0112 5c7 0 10 7 10 7a18.83 18.83 0 01-5.06 5.94M9.88 9.88A3 3 0 0014.12 14.12M6.61 6.61A18.74 18.74 0 002 12s3 7 10 7a9.77 9.77 0 004.39-1.02"
+                    />
+                  </svg>
+                ) : (
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={1.8}
+                      d="M2.46 12C3.73 8.11 7.23 5 12 5c4.77 0 8.27 3.11 9.54 7-1.27 3.89-4.77 7-9.54 7-4.77 0-8.27-3.11-9.54-7z"
+                    />
+                    <circle cx="12" cy="12" r="3" strokeWidth={1.8} />
+                  </svg>
+                )}
+              </button>
+            </div>
           </div>
 
           <div className="flex items-center justify-between">
