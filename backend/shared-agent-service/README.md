@@ -2,9 +2,10 @@
 
 ## Run locally (without Docker)
 
-1. npm install
-2. npm run prisma:generate
-3. npm run dev
+1. python -m venv .venv
+2. Activate the virtual environment
+3. pip install -r requirements.txt
+4. uvicorn src.main:app --host 0.0.0.0 --port 4005
 
 ## Health check
 

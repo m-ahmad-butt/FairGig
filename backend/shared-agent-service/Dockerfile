@@ -1,17 +1,11 @@
-﻿FROM node:20-bookworm-slim
+﻿FROM python:3.11-slim
 
 WORKDIR /app
 
-RUN apt-get update \
-	&& apt-get install -y --no-install-recommends openssl ca-certificates \
-	&& rm -rf /var/lib/apt/lists/*
-
-COPY package*.json ./
-RUN npm install
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
 
 COPY prisma ./prisma
-RUN npx prisma generate
-
 COPY src ./src
 
-CMD ["npm", "start"]
+CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "4005"]
