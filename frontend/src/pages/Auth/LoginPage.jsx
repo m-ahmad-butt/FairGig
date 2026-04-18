@@ -1,10 +1,9 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
-import { setCredentials, setLoading, setError } from "../store/slices/authSlice";
+import { setCredentials, setLoading, setError } from "../../store/slices/authSlice";
 import toast from "react-hot-toast";
-import authService from "../services/api/authService";
-import userService from "../services/api/userService";
+import authService from "../../services/api/authService";
 
 function LoginPage() {
     const [showPassword, setShowPassword] = useState(false);
@@ -17,7 +16,7 @@ function LoginPage() {
 
     useEffect(() => {
         if (isAuthenticated) {
-            navigate("/profile");
+            navigate("/");
         }
     }, [isAuthenticated, navigate]);
 
@@ -43,7 +42,7 @@ function LoginPage() {
                     user: response.user 
                 }));
                 toast.success("Login successful!");
-                navigate("/profile");
+                navigate("/");
             }
         } catch (err) {
             const msg = err.response?.data?.message || "Invalid email or password.";

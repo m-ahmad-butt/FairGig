@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
-import authService from "../services/api/authService";
+import authService from "../../services/api/authService";
 
 function ForgotPasswordPage() {
     const [step, setStep] = useState(1); // 1: Email, 2: OTP, 3: New Password

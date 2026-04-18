@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import toast from "react-hot-toast";
-import authService from "../services/api/authService";
+import authService from "../../services/api/authService";
 
 function RegisterPage() {
     const [showPassword, setShowPassword] = useState(false);
@@ -26,7 +26,7 @@ function RegisterPage() {
 
     useEffect(() => {
         if (isAuthenticated) {
-            navigate("/profile");
+            navigate("/");
         }
     }, [isAuthenticated, navigate]);
 

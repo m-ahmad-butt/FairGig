@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
-import { setCredentials } from '../store/slices/authSlice';
-import authService from '../services/api/authService';
+import { setCredentials } from '../../store/slices/authSlice';
+import authService from '../../services/api/authService';
 import toast from 'react-hot-toast';
 
 function VerifyOtpPage() {
@@ -33,7 +33,7 @@ function VerifyOtpPage() {
       const response = await authService.verifyOtp({ email, otp });
       dispatch(setCredentials({ user: response.user, token: response.token }));
       toast.success('Email verified successfully');
-      navigate('/profile');
+      navigate('/');
     } catch (error) {
       toast.error(error.response?.data?.message || 'Invalid OTP');
     } finally {

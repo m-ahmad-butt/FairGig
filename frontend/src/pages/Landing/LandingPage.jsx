@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
-import { logout } from "../store/slices/authSlice";
+import { logout } from "../../store/slices/authSlice";
 
 function LandingPage() {
     const navigate = useNavigate();
@@ -28,7 +28,7 @@ function LandingPage() {
                         </>
                     ) : (
                         <>
-                            <button onClick={() => navigate("/profile")} className="bg-black text-white px-6 py-2.5 rounded-lg text-sm font-black uppercase tracking-widest hover:bg-gray-800 transition-all shadow-lg shadow-black/10">Go to Profile</button>
+                            <button onClick={() => navigate("/")} className="bg-black text-white px-6 py-2.5 rounded-lg text-sm font-black uppercase tracking-widest hover:bg-gray-800 transition-all shadow-lg shadow-black/10">Go Home</button>
                             <button onClick={handleSignOut} className="text-sm font-black uppercase tracking-widest hover:text-gray-500 transition-colors">Sign Out</button>
                         </>
                     )}
