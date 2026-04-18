@@ -1,5 +1,4 @@
 services:
-  # MongoDB with Replica Set
   mongodb:
     image: mongo:7
     container_name: mongodb
@@ -8,17 +7,16 @@ services:
       - "27019:27017"
     volumes:
       - mongodb-data:/data/db
-      - ./scripts/init-replica-set.js:/docker-entrypoint-initdb.d/init-replica-set.js:ro
     networks:
       - hackathon-network
     healthcheck:
       test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
       interval: 10s
       timeout: 5s
-      retries: 5
-      start_period: 40s
+      retries: 10
+      start_period: 20s
+    restart: unless-stopped
 
-  # MongoDB Replica Set Initializer
   mongo-init:
     image: mongo:7
     container_name: mongo-init
@@ -27,17 +25,14 @@ services:
         condition: service_healthy
     networks:
       - hackathon-network
-    volumes:
-      - ./scripts/init-replica-set.js:/init-replica-set.js:ro
     command: >
       bash -c "
-        sleep 5 &&
-        mongosh --host mongodb:27017 --file /init-replica-set.js &&
-        echo 'MongoDB replica set initialization complete'
+        mongosh --host mongodb:27017 --quiet --eval \"rs.status().ok\" ||
+        mongosh --host mongodb:27017 --eval \"rs.initiate({_id:'rs0',members:[{_id:0,host:'mongodb:27017'}]})\";
+        echo 'MongoDB replica set is ready'
       "
     restart: "no"
 
-  # MongoDB Express UI
   mongo-express:
     image: mongo-express:latest
     container_name: mongo-express
@@ -54,27 +49,23 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
-  # Redis Stack (includes RedisInsight UI)
   redis:
-    image: redis/redis-stack:latest
+    image: redis:7-alpine
     container_name: redis
+    command: ["redis-server", "--requirepass", "123123123"]
     ports:
       - "6380:6379"
-      - "8001:8001"
-    environment:
-      REDIS_ARGS: "--requirepass 123123123"
     volumes:
       - redis-data:/data
     networks:
       - hackathon-network
     healthcheck:
-      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      test: ["CMD", "redis-cli", "-a", "123123123", "ping"]
       interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 10
     restart: unless-stopped
 
-  # RedisInsight UI
   redis-ui:
     image: redis/redisinsight:latest
     container_name: redis-ui
@@ -89,7 +80,6 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
-  # RabbitMQ with Management UI
   rabbitmq:
     image: rabbitmq:3-management-alpine
     container_name: rabbitmq
@@ -108,97 +98,126 @@ services:
       test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
       interval: 10s
       timeout: 5s
-      retries: 5
-      start_period: 30s
+      retries: 10
+      start_period: 25s
     restart: unless-stopped
 
-  # Backend Service
-  backend:
+  prisma-push:
     build:
-      context: ./backend
+      context: ./setup/worker
       dockerfile: Dockerfile
-    image: softec-backend
-    container_name: softec-backend
+    image: hackathon-worker
+    container_name: prisma-push
+    env_file:
+      - ./.env
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-mongodb://mongodb:27017/hackathon?replicaSet=rs0&directConnection=true}
+    command: ["npx", "prisma", "db", "push"]
+    depends_on:
+      mongo-init:
+        condition: service_completed_successfully
+    networks:
+      - hackathon-network
+    restart: "no"
+
+  worker:
+    build:
+      context: ./setup/worker
+      dockerfile: Dockerfile
+    image: hackathon-worker
+    container_name: hackathon-worker
+    env_file:
+      - ./.env
+    environment:
+      PORT: 3001
+      DATABASE_URL: ${DATABASE_URL:-mongodb://mongodb:27017/hackathon?replicaSet=rs0&directConnection=true}
+      MONGO_URI: ${MONGO_URI:-mongodb://mongodb:27017/hackathon?replicaSet=rs0&directConnection=true}
+      REDIS_URL: ${REDIS_URL:-redis://:123123123@redis:6379}
+      RABBITMQ_URL: ${RABBITMQ_URL:-amqp://admin123:123123123@rabbitmq:5672/hackathon}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost}
     ports:
       - "3001:3001"
-    environment:
-      NODE_ENV: development
-      PORT: 3001
-      DATABASE_URL: ${DATABASE_URL}
-      MONGO_URI: ${MONGO_URI}
-      REDIS_URL: ${REDIS_URL}
-      REDIS_HOST: ${REDIS_HOST}
-      REDIS_PORT: ${REDIS_PORT}
-      REDIS_PASSWORD: ${REDIS_PASSWORD}
-      RABBITMQ_URL: ${RABBITMQ_URL}
-      RABBITMQ_USER: ${RABBITMQ_USER}
-      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
-      RABBITMQ_VHOST: ${RABBITMQ_VHOST}
-      CLERK_SECRET_KEY: ${CLERK_SECRET_KEY}
-      CLERK_PUBLISHABLE_KEY: ${CLERK_PUBLISHABLE_KEY}
-      FRONTEND_URL: ${FRONTEND_URL}
-      BACKEND_URL: ${BACKEND_URL}
-      AGENT_URL: ${AGENT_URL}
-      EMAIL_HOST: ${EMAIL_HOST}
-      EMAIL_PORT: ${EMAIL_PORT}
-      EMAIL_USER: ${EMAIL_USER}
-      EMAIL_PASS: ${EMAIL_PASS}
-      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
-      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
-      AWS_REGION: ${AWS_REGION}
-      AWS_S3_BUCKET: ${AWS_S3_BUCKET}
-      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY}
-      STRIPE_PUBLISHABLE_KEY: ${STRIPE_PUBLISHABLE_KEY}
-      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET}
-      TOKEN_BUCKET_CAPACITY: ${TOKEN_BUCKET_CAPACITY}
-      REFILL_RATE: ${REFILL_RATE}
-      REFILL_INTERVAL: ${REFILL_INTERVAL}
-      OLLAMA_API_KEY: ${OLLAMA_API_KEY}
-      OLLAMA_MODEL: ${OLLAMA_MODEL}
-      OLLAMA_URL: ${OLLAMA_URL}
     networks:
       - hackathon-network
     depends_on:
-      mongodb:
-        condition: service_healthy
+      prisma-push:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
     restart: unless-stopped
 
-  # Frontend Service
+  auth-service:
+    build:
+      context: ./backend/auth-service
+      dockerfile: Dockerfile
+    container_name: auth-service
+    ports:
+      - "8001:8001"
+    networks:
+      - hackathon-network
+    restart: unless-stopped
+
+  earnings-service:
+    build:
+      context: ./backend/earnings-service
+      dockerfile: Dockerfile
+    container_name: earnings-service
+    ports:
+      - "8002:8002"
+    networks:
+      - hackathon-network
+    restart: unless-stopped
+
+  anomaly-service:
+    build:
+      context: ./backend/anomaly-service
+      dockerfile: Dockerfile
+    container_name: anomaly-service
+    ports:
+      - "8003:8003"
+    networks:
+      - hackathon-network
+    restart: unless-stopped
+
+  grievance-service:
+    build:
+      context: ./backend/grievance-service
+      dockerfile: Dockerfile
+    container_name: grievance-service
+    ports:
+      - "8004:8004"
+    networks:
+      - hackathon-network
+    restart: unless-stopped
+
+  analytics-service:
+    build:
+      context: ./backend/analytics-service
+      dockerfile: Dockerfile
+    container_name: analytics-service
+    ports:
+      - "8005:8005"
+    networks:
+      - hackathon-network
+    restart: unless-stopped
+
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        VITE_API_URL: ${VITE_API_URL}
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:3001}
         VITE_CLERK_PUBLISHABLE_KEY: ${VITE_CLERK_PUBLISHABLE_KEY}
-        VITE_SOCKET_URL: ${VITE_SOCKET_URL}
+        VITE_SOCKET_URL: ${VITE_SOCKET_URL:-http://localhost:3001}
         VITE_STRIPE_PUBLISHABLE_KEY: ${VITE_STRIPE_PUBLISHABLE_KEY}
-        VITE_AGENT_URL: ${VITE_AGENT_URL}
-    image: softec-frontend
-    container_name: softec-frontend
+        VITE_AGENT_URL: ${VITE_AGENT_URL:-http://localhost:5000}
+    container_name: frontend
     ports:
       - "80:80"
-    networks:
-      - hackathon-network
     depends_on:
-      - backend
-    restart: unless-stopped
-
-  # Agent Service
-  agent:
-    build:
-      context: ./agent
-      dockerfile: Dockerfile
-    image: softec-agent
-    container_name: softec-agent
-    ports:
-      - "5000:5000"
-    environment:
-      PORT: 5000
+      - worker
     networks:
       - hackathon-network
     restart: unless-stopped
@@ -210,4 +229,5 @@ networks:
 volumes:
   mongodb-data:
   redis-data:
+  redisinsight-data:
   rabbitmq-data:
