@@ -5,6 +5,12 @@ class EvidenceRepository {
     return prisma.evidance.create({ data });
   }
 
+  async createMany(items) {
+    return prisma.$transaction(
+      items.map((data) => prisma.evidance.create({ data }))
+    );
+  }
+
   async findMany(filters) {
     return prisma.evidance.findMany({
       where: filters,
@@ -18,6 +24,17 @@ class EvidenceRepository {
 
   async findBySessionId(session_id) {
     return prisma.evidance.findUnique({ where: { session_id } });
+  }
+
+  async findBySessionIds(sessionIds) {
+    return prisma.evidance.findMany({
+      where: {
+        session_id: { in: sessionIds }
+      },
+      select: {
+        session_id: true
+      }
+    });
   }
 
   async findByWorkerId(worker_id) {

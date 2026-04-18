@@ -24,7 +24,6 @@ class EarningController {
         platform_deductions: parseFloat(platform_deductions) || 0,
         net_received: parseFloat(net_received)
       });
-      });
 
       return res.status(201).json(serializeEarning(created));
     } catch (error) {
@@ -190,7 +189,6 @@ class EarningController {
 
       if (net_received !== undefined) {
         updateData.net_received = parseFloat(net_received);
-      }
       }
 
       const effectiveGrossEarned = Number(

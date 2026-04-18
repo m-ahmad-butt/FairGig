@@ -375,6 +375,52 @@ function validateCreateEvidence(req, res, next) {
   next();
 }
 
+function validateBulkEvidence(req, res, next) {
+  const { items } = req.body || {};
+
+  if (!Array.isArray(items) || items.length === 0) {
+    return res.status(400).json({ error: 'items must be a non-empty array' });
+  }
+
+  const seenSessionIds = new Set();
+
+  for (let index = 0; index < items.length; index += 1) {
+    const item = items[index] || {};
+    const { worker_id, session_id, image_url, verified } = item;
+
+    if (!worker_id || !session_id || !image_url) {
+      return res.status(400).json({
+        error: `items[${index}] must include worker_id, session_id and image_url`
+      });
+    }
+
+    if (typeof worker_id !== 'string' || !isMongoObjectId(worker_id)) {
+      return res.status(400).json({
+        error: `items[${index}].worker_id must be a valid auth-service user id (Mongo ObjectId string)`
+      });
+    }
+
+    if (!isUuid(session_id)) {
+      return res.status(400).json({ error: `items[${index}].session_id must be a UUID` });
+    }
+
+    if (seenSessionIds.has(session_id)) {
+      return res.status(400).json({ error: `Duplicate session_id in bulk payload: ${session_id}` });
+    }
+    seenSessionIds.add(session_id);
+
+    if (typeof image_url !== 'string' || image_url.trim().length === 0) {
+      return res.status(400).json({ error: `items[${index}].image_url must be a non-empty string` });
+    }
+
+    if (verified !== undefined && typeof verified !== 'boolean') {
+      return res.status(400).json({ error: `items[${index}].verified must be a boolean value` });
+    }
+  }
+
+  next();
+}
+
 function validateUpdateEvidence(req, res, next) {
   const allowed = ['worker_id', 'session_id', 'image_url', 'verified'];
   const keys = Object.keys(req.body || {});
@@ -409,6 +455,20 @@ function validateUpdateEvidence(req, res, next) {
   next();
 }
 
+function validateEvidenceVerifiedUpdate(req, res, next) {
+  const keys = Object.keys(req.body || {});
+
+  if (keys.length !== 1 || keys[0] !== 'verified') {
+    return res.status(400).json({ error: 'Only verified field is allowed in this endpoint' });
+  }
+
+  if (typeof req.body.verified !== 'boolean') {
+    return res.status(400).json({ error: 'verified must be a boolean value' });
+  }
+
+  next();
+}
+
 module.exports = {
   validateUuidParam,
   validateWorkerIdParam,
@@ -420,5 +480,7 @@ module.exports = {
   validateBulkEarnings,
   validateUpdateEarning,
   validateCreateEvidence,
-  validateUpdateEvidence
+  validateBulkEvidence,
+  validateUpdateEvidence,
+  validateEvidenceVerifiedUpdate
 };

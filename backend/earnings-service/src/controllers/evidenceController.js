@@ -73,6 +73,70 @@ class EvidenceController {
     }
   }
 
+  async bulkCreate(req, res) {
+    try {
+      const { items } = req.body;
+      const uniqueSessionIds = [...new Set(items.map((item) => item.session_id))];
+
+      const sessions = await workSessionRepository.findByIds(uniqueSessionIds);
+      const sessionMap = new Map(sessions.map((session) => [session.id, session]));
+
+      const missingSessionIds = uniqueSessionIds.filter((sessionId) => !sessionMap.has(sessionId));
+      if (missingSessionIds.length > 0) {
+        return sendBadRequest(
+          res,
+          `Work session not found for session_id values: ${missingSessionIds.join(', ')}`
+        );
+      }
+
+      for (let index = 0; index < items.length; index += 1) {
+        const item = items[index];
+        const session = sessionMap.get(item.session_id);
+
+        if (session.worker_id !== item.worker_id) {
+          return sendBadRequest(
+            res,
+            `items[${index}].worker_id must match owner of session_id ${item.session_id}`
+          );
+        }
+      }
+
+      const existingEvidences = await evidenceRepository.findBySessionIds(uniqueSessionIds);
+      if (existingEvidences.length > 0) {
+        const occupiedSessionIds = existingEvidences.map((entry) => entry.session_id);
+        return sendBadRequest(
+          res,
+          `Only one image evidence is allowed per session. Existing session_id values: ${occupiedSessionIds.join(', ')}`
+        );
+      }
+
+      const createData = items.map((item) => ({
+        worker_id: item.worker_id,
+        session_id: item.session_id,
+        image_url: item.image_url.trim(),
+        ...(item.verified !== undefined ? { verified: item.verified } : {})
+      }));
+
+      const created = await evidenceRepository.createMany(createData);
+
+      return res.status(201).json({
+        count: created.length,
+        evidences: created
+      });
+    } catch (error) {
+      if (error?.statusCode === 400) {
+        return sendBadRequest(res, error.message);
+      }
+
+      if (error?.code === 'P2002') {
+        return sendBadRequest(res, 'Only one image evidence is allowed per session');
+      }
+
+      console.error('Bulk create evidence error:', error);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+
   async list(req, res) {
     try {
       const { worker_id, session_id, verified } = req.query;
@@ -229,6 +293,27 @@ class EvidenceController {
       }
 
       console.error('Update evidence error:', error);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+
+  async updateVerified(req, res) {
+    try {
+      const existing = await evidenceRepository.findById(req.params.id);
+      if (!existing) {
+        return sendNotFound(res, 'Evidence not found');
+      }
+
+      const updated = await evidenceRepository.update(req.params.id, {
+        verified: req.body.verified
+      });
+
+      return res.json({
+        message: 'Evidence verification status updated successfully',
+        evidence: updated
+      });
+    } catch (error) {
+      console.error('Update evidence verified status error:', error);
       return res.status(500).json({ error: 'Internal server error' });
     }
   }
