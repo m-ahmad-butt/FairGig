@@ -107,11 +107,35 @@
     volumes:
       - auth_mongo_data:/data/db
 
+  auth-mongo-express:
+    image: mongo-express:latest
+    container_name: auth-mongo-express
+    environment:
+      - ME_CONFIG_MONGODB_SERVER=auth-mongo
+      - ME_CONFIG_MONGODB_PORT=27017
+      - ME_CONFIG_BASICAUTH=false
+    ports:
+      - '8081:8081'
+    depends_on:
+      - auth-mongo
+
   earnings-mongo:
     image: mongo:7
     container_name: earnings-mongo
     volumes:
       - earnings_mongo_data:/data/db
+
+  earnings-mongo-express:
+    image: mongo-express:latest
+    container_name: earnings-mongo-express
+    environment:
+      - ME_CONFIG_MONGODB_SERVER=earnings-mongo
+      - ME_CONFIG_MONGODB_PORT=27017
+      - ME_CONFIG_BASICAUTH=false
+    ports:
+      - '8082:8081'
+    depends_on:
+      - earnings-mongo
 
   grievance-mongo:
     image: mongo:7
@@ -119,11 +143,35 @@
     volumes:
       - grievance_mongo_data:/data/db
 
+  grievance-mongo-express:
+    image: mongo-express:latest
+    container_name: grievance-mongo-express
+    environment:
+      - ME_CONFIG_MONGODB_SERVER=grievance-mongo
+      - ME_CONFIG_MONGODB_PORT=27017
+      - ME_CONFIG_BASICAUTH=false
+    ports:
+      - '8083:8081'
+    depends_on:
+      - grievance-mongo
+
   certificate-mongo:
     image: mongo:7
     container_name: certificate-mongo
     volumes:
       - certificate_mongo_data:/data/db
+
+  certificate-mongo-express:
+    image: mongo-express:latest
+    container_name: certificate-mongo-express
+    environment:
+      - ME_CONFIG_MONGODB_SERVER=certificate-mongo
+      - ME_CONFIG_MONGODB_PORT=27017
+      - ME_CONFIG_BASICAUTH=false
+    ports:
+      - '8084:8081'
+    depends_on:
+      - certificate-mongo
 
   shared-agent-mongo:
     image: mongo:7
@@ -131,17 +179,53 @@
     volumes:
       - shared_agent_mongo_data:/data/db
 
+  shared-agent-mongo-express:
+    image: mongo-express:latest
+    container_name: shared-agent-mongo-express
+    environment:
+      - ME_CONFIG_MONGODB_SERVER=shared-agent-mongo
+      - ME_CONFIG_MONGODB_PORT=27017
+      - ME_CONFIG_BASICAUTH=false
+    ports:
+      - '8085:8081'
+    depends_on:
+      - shared-agent-mongo
+
   analytics-mongo:
     image: mongo:7
     container_name: analytics-mongo
     volumes:
       - analytics_mongo_data:/data/db
 
+  analytics-mongo-express:
+    image: mongo-express:latest
+    container_name: analytics-mongo-express
+    environment:
+      - ME_CONFIG_MONGODB_SERVER=analytics-mongo
+      - ME_CONFIG_MONGODB_PORT=27017
+      - ME_CONFIG_BASICAUTH=false
+    ports:
+      - '8086:8081'
+    depends_on:
+      - analytics-mongo
+
   anomaly-mongo:
     image: mongo:7
     container_name: anomaly-mongo
     volumes:
       - anomaly_mongo_data:/data/db
+
+  anomaly-mongo-express:
+    image: mongo-express:latest
+    container_name: anomaly-mongo-express
+    environment:
+      - ME_CONFIG_MONGODB_SERVER=anomaly-mongo
+      - ME_CONFIG_MONGODB_PORT=27017
+      - ME_CONFIG_BASICAUTH=false
+    ports:
+      - '8087:8081'
+    depends_on:
+      - anomaly-mongo
 
 volumes:
   auth_mongo_data:
