@@ -13,3 +13,24 @@ model HealthPing {
   service   String
   createdAt DateTime @default(now())
 }
+
+model ScreenshotVerification {
+  id                  String   @id @default(auto()) @map("_id") @db.ObjectId
+  worker_id           String
+  session_id          String
+  image_url           String
+  platform_name       String
+  gross_amount        Float
+  platform_deduction  Float    @default(0)
+  net_amount          Float
+  confidence_score    Float
+  extracted_payload   Json
+  actual_payload      Json
+  created_at          DateTime @default(now())
+  updated_at          DateTime @updatedAt
+
+  @@index([worker_id])
+  @@index([session_id])
+  @@unique([worker_id, session_id])
+  @@map("ai_screenshot_verifications")
+}
