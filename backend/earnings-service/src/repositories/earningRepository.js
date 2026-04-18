@@ -16,6 +16,10 @@ class EarningRepository {
     return prisma.earning.findUnique({ where: { id } });
   }
 
+  async findBySessionId(session_id) {
+    return prisma.earning.findUnique({ where: { session_id } });
+  }
+
   async update(id, data) {
     return prisma.earning.update({
       where: { id },

@@ -24,7 +24,8 @@ model WorkSession {
   hours_worked    Float
   trips_completed Int
   created_at      DateTime  @default(now())
-  earnings        Earning[]
+  earning         Earning?
+  evidance        Evidance?
 
   @@index([worker_id])
   @@index([session_date])
@@ -33,12 +34,25 @@ model WorkSession {
 }
 
 model Earning {
-  id           String      @id @default(uuid()) @map("_id")
-  session_id   String
-  gross_amount Decimal
-  created_at   DateTime    @default(now())
-  session      WorkSession @relation(fields: [session_id], references: [id])
+  id                  String      @id @default(uuid()) @map("_id")
+  session_id          String      @unique
+  gross_earned        Decimal
+  platform_deductions Decimal     @default(0)
+  net_received        Decimal
+  created_at          DateTime    @default(now())
+  session             WorkSession @relation(fields: [session_id], references: [id])
 
-  @@index([session_id])
   @@map("earnings")
+}
+
+model Evidance {
+  id         String      @id @default(uuid()) @map("_id")
+  worker_id  String
+  session_id String      @unique
+  image_url  String
+  created_at DateTime    @default(now())
+  session    WorkSession @relation(fields: [session_id], references: [id])
+
+  @@index([worker_id])
+  @@map("evidance")
 }

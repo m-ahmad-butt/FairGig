@@ -15,7 +15,7 @@ class WorkSessionRepository {
   async findById(id) {
     return prisma.workSession.findUnique({
       where: { id },
-      include: { earnings: true }
+      include: { earning: true, evidence: true }
     });
   }
 
@@ -32,6 +32,7 @@ class WorkSessionRepository {
 
   async deleteWithEarnings(id) {
     return prisma.$transaction([
+      prisma.evidence.deleteMany({ where: { session_id: id } }),
       prisma.earning.deleteMany({ where: { session_id: id } }),
       prisma.workSession.delete({ where: { id } })
     ]);

@@ -98,26 +98,47 @@ function validateUpdateWorkSession(req, res, next) {
 }
 
 function validateCreateEarning(req, res, next) {
-  const { session_id, gross_amount } = req.body;
+  const { session_id, gross_earned, platform_deductions, net_received } = req.body;
 
-  if (!session_id || gross_amount === undefined) {
-    return res.status(400).json({ error: 'session_id and gross_amount are required' });
+  if (!session_id || gross_earned === undefined || platform_deductions === undefined || net_received === undefined) {
+    return res.status(400).json({
+      error: 'session_id, gross_earned, platform_deductions and net_received are required'
+    });
   }
 
   if (!isUuid(session_id)) {
     return res.status(400).json({ error: 'session_id must be a UUID' });
   }
 
-  const asNumber = Number(gross_amount);
-  if (!Number.isFinite(asNumber) || asNumber < 0) {
-    return res.status(400).json({ error: 'gross_amount must be a non-negative number' });
+  const grossEarnedValue = Number(gross_earned);
+  const platformDeductionsValue = Number(platform_deductions);
+  const netReceivedValue = Number(net_received);
+
+  if (!Number.isFinite(grossEarnedValue) || grossEarnedValue < 0) {
+    return res.status(400).json({ error: 'gross_earned must be a non-negative number' });
+  }
+
+  if (!Number.isFinite(platformDeductionsValue) || platformDeductionsValue < 0) {
+    return res.status(400).json({ error: 'platform_deductions must be a non-negative number' });
+  }
+
+  if (!Number.isFinite(netReceivedValue) || netReceivedValue < 0) {
+    return res.status(400).json({ error: 'net_received must be a non-negative number' });
+  }
+
+  if (platformDeductionsValue > grossEarnedValue) {
+    return res.status(400).json({ error: 'platform_deductions cannot be greater than gross_earned' });
+  }
+
+  if (netReceivedValue > grossEarnedValue) {
+    return res.status(400).json({ error: 'net_received cannot be greater than gross_earned' });
   }
 
   next();
 }
 
 function validateUpdateEarning(req, res, next) {
-  const allowed = ['session_id', 'gross_amount'];
+  const allowed = ['session_id', 'gross_earned', 'platform_deductions', 'net_received'];
   const keys = Object.keys(req.body || {});
 
   if (keys.length === 0) {
@@ -133,11 +154,99 @@ function validateUpdateEarning(req, res, next) {
     return res.status(400).json({ error: 'session_id must be a UUID' });
   }
 
-  if (req.body.gross_amount !== undefined) {
-    const asNumber = Number(req.body.gross_amount);
+  if (req.body.gross_earned !== undefined) {
+    const asNumber = Number(req.body.gross_earned);
     if (!Number.isFinite(asNumber) || asNumber < 0) {
-      return res.status(400).json({ error: 'gross_amount must be a non-negative number' });
+      return res.status(400).json({ error: 'gross_earned must be a non-negative number' });
     }
+  }
+
+  if (req.body.platform_deductions !== undefined) {
+    const asNumber = Number(req.body.platform_deductions);
+    if (!Number.isFinite(asNumber) || asNumber < 0) {
+      return res.status(400).json({ error: 'platform_deductions must be a non-negative number' });
+    }
+  }
+
+  if (req.body.net_received !== undefined) {
+    const asNumber = Number(req.body.net_received);
+    if (!Number.isFinite(asNumber) || asNumber < 0) {
+      return res.status(400).json({ error: 'net_received must be a non-negative number' });
+    }
+  }
+
+  const grossEarnedValue = req.body.gross_earned !== undefined ? Number(req.body.gross_earned) : undefined;
+  const platformDeductionsValue = req.body.platform_deductions !== undefined ? Number(req.body.platform_deductions) : undefined;
+  const netReceivedValue = req.body.net_received !== undefined ? Number(req.body.net_received) : undefined;
+
+  if (
+    grossEarnedValue !== undefined &&
+    platformDeductionsValue !== undefined &&
+    platformDeductionsValue > grossEarnedValue
+  ) {
+    return res.status(400).json({ error: 'platform_deductions cannot be greater than gross_earned' });
+  }
+
+  if (
+    grossEarnedValue !== undefined &&
+    netReceivedValue !== undefined &&
+    netReceivedValue > grossEarnedValue
+  ) {
+    return res.status(400).json({ error: 'net_received cannot be greater than gross_earned' });
+  }
+
+  next();
+}
+
+function validateCreateEvidence(req, res, next) {
+  const { worker_id, session_id, image_url } = req.body;
+
+  if (!worker_id || !session_id || !image_url) {
+    return res.status(400).json({ error: 'worker_id, session_id and image_url are required' });
+  }
+
+  if (typeof worker_id !== 'string' || !isMongoObjectId(worker_id)) {
+    return res.status(400).json({
+      error: 'worker_id must be a valid auth-service user id (Mongo ObjectId string)'
+    });
+  }
+
+  if (!isUuid(session_id)) {
+    return res.status(400).json({ error: 'session_id must be a UUID' });
+  }
+
+  if (typeof image_url !== 'string' || image_url.trim().length === 0) {
+    return res.status(400).json({ error: 'image_url must be a non-empty string' });
+  }
+
+  next();
+}
+
+function validateUpdateEvidence(req, res, next) {
+  const allowed = ['worker_id', 'session_id', 'image_url'];
+  const keys = Object.keys(req.body || {});
+
+  if (keys.length === 0) {
+    return res.status(400).json({ error: 'At least one field is required for update' });
+  }
+
+  const invalid = keys.filter((key) => !allowed.includes(key));
+  if (invalid.length > 0) {
+    return res.status(400).json({ error: `Invalid fields: ${invalid.join(', ')}` });
+  }
+
+  if (req.body.worker_id !== undefined && (typeof req.body.worker_id !== 'string' || !isMongoObjectId(req.body.worker_id))) {
+    return res.status(400).json({
+      error: 'worker_id must be a valid auth-service user id (Mongo ObjectId string)'
+    });
+  }
+
+  if (req.body.session_id !== undefined && !isUuid(req.body.session_id)) {
+    return res.status(400).json({ error: 'session_id must be a UUID' });
+  }
+
+  if (req.body.image_url !== undefined && (typeof req.body.image_url !== 'string' || req.body.image_url.trim().length === 0)) {
+    return res.status(400).json({ error: 'image_url must be a non-empty string' });
   }
 
   next();
@@ -148,5 +257,7 @@ module.exports = {
   validateCreateWorkSession,
   validateUpdateWorkSession,
   validateCreateEarning,
-  validateUpdateEarning
+  validateUpdateEarning,
+  validateCreateEvidence,
+  validateUpdateEvidence
 };

@@ -5,6 +5,7 @@ const cors = require('cors');
 const prisma = require('./config/prisma');
 const workSessionRoutes = require('./routes/workSessionRoutes');
 const earningRoutes = require('./routes/earningRoutes');
+const evidenceRoutes = require('./routes/evidenceRoutes');
 
 const app = express();
 const port = Number(process.env.PORT || 4002);
@@ -36,13 +37,15 @@ app.get('/', (req, res) => {
     endpoints: {
       health: '/health',
       workSessions: '/work-sessions',
-      earnings: '/earnings'
+      earnings: '/earnings',
+      evidence: '/evidence'
     }
   });
 });
 
 app.use('/work-sessions', workSessionRoutes);
 app.use('/earnings', earningRoutes);
+app.use('/evidence', evidenceRoutes);
 
 app.use((err, req, res, next) => {
   console.error(err.stack);
