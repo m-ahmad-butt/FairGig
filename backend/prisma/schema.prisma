@@ -1,0 +1,166 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  email           String              @id @map("_id")
+  name            String
+  password        String
+  isVerified      Boolean             @default(false)
+  isBan           Boolean             @default(false)
+  role            Role                @default(STUDENT)
+  reputationScore Int                 @default(100)
+  imageUrl        String?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  reputationHistory ReputationHistory[]
+}
+
+model OTP {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  email     String
+  code      String
+  createdAt DateTime @default(now())
+}
+
+model ReputationHistory {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  userEmail   String
+  user        User     @relation(fields: [userEmail], references: [email])
+  change      Int
+  reason      String
+  description String?
+  createdAt   DateTime @default(now())
+}
+
+model Chat {
+  id        String    @id @default(auto()) @map("_id") @db.ObjectId
+  user1     String
+  user2     String
+  messages  Message[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model Message {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  chatId      String   @db.ObjectId
+  chat        Chat     @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  content     String
+  sender      String
+  receiver    String
+  isAbusive   Boolean  @default(false)
+  abuseReason String?
+  createdAt   DateTime @default(now())
+}
+
+model Room {
+  id        String       @id @default(auto()) @map("_id") @db.ObjectId
+  name      String
+  code      String       @unique
+  isPublic  Boolean      @default(true)
+  createdBy String
+  topics    Topic[]
+  members   RoomMember[]
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+}
+
+model RoomMember {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  roomId    String   @db.ObjectId
+  room      Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  userEmail String
+  joinedAt  DateTime @default(now())
+
+  @@unique([roomId, userEmail])
+}
+
+model Topic {
+  id                 String              @id @default(auto()) @map("_id") @db.ObjectId
+  roomId             String              @db.ObjectId
+  room               Room                @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  name               String
+  code               String              @unique
+  isPublic           Boolean             @default(true)
+  createdBy          String
+  discussionMessages DiscussionMessage[]
+  members            TopicMember[]
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+}
+
+model TopicMember {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  topicId   String   @db.ObjectId
+  topic     Topic    @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  userEmail String
+  joinedAt  DateTime @default(now())
+
+  @@unique([topicId, userEmail])
+}
+
+model DiscussionMessage {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  topicId     String   @db.ObjectId
+  topic       Topic    @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  content     String
+  senderEmail String
+  senderName  String
+  isAnonymous Boolean  @default(false)
+  isAbusive   Boolean  @default(false)
+  abuseReason String?
+  createdAt   DateTime @default(now())
+}
+
+model Notification {
+  id        String           @id @default(auto()) @map("_id") @db.ObjectId
+  to        String
+  from      String?
+  title     String
+  content   String
+  type      NotificationType
+  isRead    Boolean          @default(false)
+  metadata  Json?
+  actionUrl String?
+  createdAt DateTime         @default(now())
+}
+
+model Transaction {
+  id                 String            @id @default(auto()) @map("_id") @db.ObjectId
+  userId             String
+  description        String
+  amount             Int
+  currency           String            @default("PKR")
+  status             TransactionStatus @default(PENDING)
+  stripePaymentId    String?
+  stripeClientSecret String?
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+}
+
+enum Role {
+  STUDENT
+  ADMIN
+}
+
+enum NotificationType {
+  message_received
+  discussion_message
+  reputation_added
+  reputation_deducted_abuse
+  payment_success
+  payment_failed
+}
+
+enum TransactionStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}

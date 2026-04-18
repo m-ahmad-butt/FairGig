@@ -1,0 +1,45 @@
+# Environment Files
+.env
+.env-prod
+.env.*
+!.env.example
+scripts/
+secrets.md
+sample/
+
+# Dependencies
+node_modules/
+backend/*/node_modules/
+backend-monolith/node_modules/
+frontend/node_modules/
+backend/*/.env
+backend-monolith/.env
+
+# OS Files
+.DS_Store
+Thumbs.db
+
+# Build and Temp Files
+dist/
+build/
+.npm/
+.prisma/
+backend/*/dist/
+backend/*/build/
+backend/*/prisma/migrations/
+backend-monolith/dist/
+backend-monolith/build/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Project specific
+backend/*/mongodb/data/
+backend/shared/*/data/
+backend-monolith/docker/data/
+
+# Old microservices (deprecated - can be removed after successful migration)
+# backend/ - Removed to allow backend directory to be tracked

@@ -1,0 +1,151 @@
+stages:
+  - build
+  - deploy
+
+variables:
+  DOCKER_DRIVER: overlay2
+  DOCKER_TLS_CERTDIR: ""
+  BACKEND_IMAGE: "${BACKEND_IMAGE}"
+  FRONTEND_IMAGE: "${FRONTEND_IMAGE}"
+  AGENT_IMAGE: "${AGENT_IMAGE}"
+
+default:
+  tags:
+    - aws
+
+services:
+  - name: docker:24.0.5-dind
+    alias: docker
+
+.docker-login: &docker-login
+  before_script:
+    - echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
+
+#BUILD 
+
+build:backend:
+  <<: *docker-login
+  stage: build
+  image: docker:24.0.5
+  script:
+    - cd backend
+    - docker build -t ${BACKEND_IMAGE}:${CI_COMMIT_SHORT_SHA} -t ${BACKEND_IMAGE}:latest .
+    - docker push ${BACKEND_IMAGE}:${CI_COMMIT_SHORT_SHA}
+    - docker push ${BACKEND_IMAGE}:latest
+  only:
+    - main
+
+build:frontend:
+  <<: *docker-login
+  stage: build
+  image: docker:24.0.5
+  script:
+    - cd frontend
+    - docker build --build-arg VITE_API_URL=${BACKEND_URL} --build-arg VITE_CLERK_PUBLISHABLE_KEY=${CLERK_PUBLISHABLE_KEY} -t ${FRONTEND_IMAGE}:${CI_COMMIT_SHORT_SHA} -t ${FRONTEND_IMAGE}:latest .
+    - docker push ${FRONTEND_IMAGE}:${CI_COMMIT_SHORT_SHA}
+    - docker push ${FRONTEND_IMAGE}:latest
+  only:
+    - main
+
+build:agent:
+  <<: *docker-login
+  stage: build
+  image: docker:24.0.5
+  script:
+    - cd agent
+    - docker build -t ${AGENT_IMAGE}:${CI_COMMIT_SHORT_SHA} -t ${AGENT_IMAGE}:latest .
+    - docker push ${AGENT_IMAGE}:${CI_COMMIT_SHORT_SHA}
+    - docker push ${AGENT_IMAGE}:latest
+  only:
+    - main
+
+#SSH
+.ssh-setup: &ssh-setup
+  - apk add --no-cache openssh-client
+  - mkdir -p ~/.ssh
+  - chmod 700 ~/.ssh
+  - echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
+  - chmod 600 ~/.ssh/id_rsa
+
+#DEPLOY
+
+deploy:backend:
+  stage: deploy
+  image: alpine:latest
+  before_script:
+    - *ssh-setup
+  script:
+    # Ensure Docker permissions are set correctly
+    - ssh -o StrictHostKeyChecking=no ubuntu@${BACKEND_EC2_IP} "sudo usermod -aG docker ubuntu && sudo chmod 666 /var/run/docker.sock"
+    - ssh -o StrictHostKeyChecking=no ubuntu@${BACKEND_EC2_IP} "echo '${DOCKER_PASSWORD}' | docker login -u '${DOCKER_USERNAME}' --password-stdin"
+    - ssh -o StrictHostKeyChecking=no ubuntu@${BACKEND_EC2_IP} "docker stop hackathon-backend mongodb redis rabbitmq mongo-express 2>/dev/null || true"
+    - ssh -o StrictHostKeyChecking=no ubuntu@${BACKEND_EC2_IP} "docker rm hackathon-backend mongodb redis rabbitmq mongo-express 2>/dev/null || true"
+    - ssh -o StrictHostKeyChecking=no ubuntu@${BACKEND_EC2_IP} "docker network create hackathon-network 2>/dev/null || true"
+    # Start MongoDB without authentication for replica set
+    - ssh -o StrictHostKeyChecking=no ubuntu@${BACKEND_EC2_IP} "docker run -d --name mongodb --network hackathon-network -p ${MONGO_PORT}:27017 -v mongodb-data:/data/db --restart unless-stopped mongo:7 --replSet rs0 --bind_ip_all"
+    # Wait longer for MongoDB to fully start
+    - ssh -o StrictHostKeyChecking=no ubuntu@${BACKEND_EC2_IP} "sleep 30"
+    # Check if MongoDB is ready and initialize replica set
+    - ssh -o StrictHostKeyChecking=no ubuntu@${BACKEND_EC2_IP} "for i in {1..10}; do docker exec mongodb mongosh --quiet --eval 'db.adminCommand({ping:1})' && break || sleep 3; done"
+    - ssh -o StrictHostKeyChecking=no ubuntu@${BACKEND_EC2_IP} "docker exec mongodb mongosh --quiet --eval 'rs.status()' || docker exec mongodb mongosh --eval 'rs.initiate({_id:\"rs0\",members:[{_id:0,host:\"mongodb:27017\"}]})'"
+    # Wait for replica set to be ready
+    - ssh -o StrictHostKeyChecking=no ubuntu@${BACKEND_EC2_IP} "sleep 10"
+    - ssh -o StrictHostKeyChecking=no ubuntu@${BACKEND_EC2_IP} "docker run -d --name redis --network hackathon-network -p ${REDIS_PORT}:6379 -p 8001:8001 -e REDIS_ARGS='--requirepass ${REDIS_PASSWORD}' -v redis-data:/data --restart unless-stopped redis/redis-stack:latest"
+    - ssh -o StrictHostKeyChecking=no ubuntu@${BACKEND_EC2_IP} "docker run -d --name rabbitmq --network hackathon-network -p ${RABBITMQ_PORT}:5672 -p ${RABBITMQ_MANAGEMENT_PORT}:15672 -e RABBITMQ_DEFAULT_USER=${RABBITMQ_USER} -e RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASSWORD} -e RABBITMQ_DEFAULT_VHOST=${RABBITMQ_VHOST} -v rabbitmq-data:/var/lib/rabbitmq --restart unless-stopped rabbitmq:3-management-alpine"
+    - ssh -o StrictHostKeyChecking=no ubuntu@${BACKEND_EC2_IP} "sleep 15"
+    # Deploy Management UIs
+    - ssh -o StrictHostKeyChecking=no ubuntu@${BACKEND_EC2_IP} "docker stop mongo-express 2>/dev/null || true"
+    - ssh -o StrictHostKeyChecking=no ubuntu@${BACKEND_EC2_IP} "docker rm mongo-express 2>/dev/null || true"
+    - ssh -o StrictHostKeyChecking=no ubuntu@${BACKEND_EC2_IP} "docker run -d --name mongo-express --network hackathon-network -p 8081:8081 -e ME_CONFIG_MONGODB_URL='mongodb://mongodb:27017/' -e ME_CONFIG_BASICAUTH_USERNAME='admin' -e ME_CONFIG_BASICAUTH_PASSWORD='${MONGO_EXPRESS_PASSWORD}' --restart unless-stopped mongo-express:latest"
+    - ssh -o StrictHostKeyChecking=no ubuntu@${BACKEND_EC2_IP} "docker pull ${BACKEND_IMAGE}:latest"
+    # Update DATABASE_URL to remove authentication since MongoDB is running without auth
+    - ssh -o StrictHostKeyChecking=no ubuntu@${BACKEND_EC2_IP} "docker run -d --name hackathon-backend --network hackathon-network -p 3002:3001 -e NODE_ENV=production -e PORT=3001 -e DATABASE_URL='mongodb://mongodb:27017/hackathon?replicaSet=rs0&directConnection=true' -e REDIS_URL='redis://:${REDIS_PASSWORD}@redis:6379' -e RABBITMQ_URL='amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672/${RABBITMQ_VHOST}' -e CLERK_SECRET_KEY='${CLERK_SECRET_KEY}' -e STRIPE_SECRET_KEY='${STRIPE_SECRET_KEY}' -e STRIPE_PUBLISHABLE_KEY='${STRIPE_PUBLISHABLE_KEY}' -e STRIPE_WEBHOOK_SECRET='${STRIPE_WEBHOOK_SECRET}' -e AWS_ACCESS_KEY_ID='${AWS_ACCESS_KEY_ID}' -e AWS_SECRET_ACCESS_KEY='${AWS_SECRET_ACCESS_KEY}' -e AWS_REGION='${AWS_REGION}' -e AWS_S3_BUCKET='${AWS_S3_BUCKET}' -e EMAIL_HOST='${EMAIL_HOST}' -e EMAIL_PORT='${EMAIL_PORT}' -e EMAIL_USER='${EMAIL_USER}' -e EMAIL_PASS='${EMAIL_PASS}' -e FRONTEND_URL='${FRONTEND_URL}' -e TOKEN_BUCKET_CAPACITY='${TOKEN_BUCKET_CAPACITY}' -e REFILL_RATE='${REFILL_RATE}' -e REFILL_INTERVAL='${REFILL_INTERVAL}' --restart unless-stopped ${BACKEND_IMAGE}:latest"
+    - ssh -o StrictHostKeyChecking=no ubuntu@${BACKEND_EC2_IP} "docker image prune -af --filter 'until=48h'"
+  only:
+    - main
+  environment:
+    name: production-backend
+    url: http://${BACKEND_EC2_IP}:3002
+
+deploy:frontend:
+  stage: deploy
+  image: alpine:latest
+  before_script:
+    - *ssh-setup
+  script:
+    - ssh -o StrictHostKeyChecking=no ubuntu@${FRONTEND_EC2_IP} "echo '${DOCKER_PASSWORD}' | docker login -u '${DOCKER_USERNAME}' --password-stdin"
+    - ssh -o StrictHostKeyChecking=no ubuntu@${FRONTEND_EC2_IP} "docker stop hackathon-frontend 2>/dev/null || true"
+    - ssh -o StrictHostKeyChecking=no ubuntu@${FRONTEND_EC2_IP} "docker rm hackathon-frontend 2>/dev/null || true"
+    - ssh -o StrictHostKeyChecking=no ubuntu@${FRONTEND_EC2_IP} "docker pull ${FRONTEND_IMAGE}:latest"
+    # Only expose port 8080 internally, let system Nginx handle SSL on 443
+    - ssh -o StrictHostKeyChecking=no ubuntu@${FRONTEND_EC2_IP} "docker run -d --name hackathon-frontend -p 127.0.0.1:8080:80 --restart unless-stopped ${FRONTEND_IMAGE}:latest"
+    # Update Nginx config to proxy to localhost:8080
+    - ssh -o StrictHostKeyChecking=no ubuntu@${FRONTEND_EC2_IP} "sudo sed -i 's|proxy_pass http://localhost:80;|proxy_pass http://localhost:8080;|g' /etc/nginx/sites-available/s-frontend.duckdns.org"
+    # Start system Nginx for SSL termination
+    - ssh -o StrictHostKeyChecking=no ubuntu@${FRONTEND_EC2_IP} "sudo systemctl restart nginx && sudo systemctl enable nginx"
+    - ssh -o StrictHostKeyChecking=no ubuntu@${FRONTEND_EC2_IP} "docker image prune -af --filter 'until=48h'"
+  only:
+    - main
+  environment:
+    name: production-frontend
+    url: https://s-frontend.duckdns.org
+
+deploy:agent:
+  stage: deploy
+  image: alpine:latest
+  before_script:
+    - *ssh-setup
+  script:
+    # Fix Docker permissions first
+    - ssh -o StrictHostKeyChecking=no ubuntu@${AGENT_EC2_IP} "sudo usermod -aG docker ubuntu && sudo chmod 666 /var/run/docker.sock"
+    - ssh -o StrictHostKeyChecking=no ubuntu@${AGENT_EC2_IP} "echo '${DOCKER_PASSWORD}' | docker login -u '${DOCKER_USERNAME}' --password-stdin"
+    - ssh -o StrictHostKeyChecking=no ubuntu@${AGENT_EC2_IP} "docker stop hackathon-agent 2>/dev/null || true"
+    - ssh -o StrictHostKeyChecking=no ubuntu@${AGENT_EC2_IP} "docker rm hackathon-agent 2>/dev/null || true"
+    - ssh -o StrictHostKeyChecking=no ubuntu@${AGENT_EC2_IP} "docker pull ${AGENT_IMAGE}:latest"
+    - ssh -o StrictHostKeyChecking=no ubuntu@${AGENT_EC2_IP} "docker run -d --name hackathon-agent -p 5000:5000 -e PORT=5000 --restart unless-stopped ${AGENT_IMAGE}:latest"
+    - ssh -o StrictHostKeyChecking=no ubuntu@${AGENT_EC2_IP} "docker image prune -af --filter 'until=48h'"
+  only:
+    - main
+  environment:
+    name: production-agent
+    url: http://${AGENT_EC2_IP}:5000

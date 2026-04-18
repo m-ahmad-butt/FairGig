@@ -1,0 +1,609 @@
+{
+  "info": {
+    "_postman_id": "fast-ex-hackathon",
+    "name": "FAST-Ex Hackathon",
+    "description": "Updated API endpoints for hackathon project",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:5000",
+      "type": "string"
+    },
+    {
+      "key": "token",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Auth Service",
+      "item": [
+        {
+          "name": "Register User",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"l233059@lhr.nu.edu.pk\",\n  \"name\": \"Muhammad Ahmad\",\n  \"rollNo\": \"23L-3059\",\n  \"password\": \"Password123$\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "register"]
+            }
+          }
+        },
+        {
+          "name": "Verify OTP",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"l233059@lhr.nu.edu.pk\",\n  \"code\": \"123456\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/verify-otp",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "verify-otp"]
+            }
+          }
+        },
+        {
+          "name": "Send OTP",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"l233059@lhr.nu.edu.pk\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/send-otp",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "send-otp"]
+            }
+          }
+        },
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.token) {",
+                  "    pm.collectionVariables.set('token', jsonData.token);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"l233059@lhr.nu.edu.pk\",\n  \"password\": \"Password123$\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "Change Password",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"l233059@lhr.nu.edu.pk\",\n  \"password\": \"NewPassword123$\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/change-password",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "change-password"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. User Service",
+      "item": [
+        {
+          "name": "Get My Profile",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+            "url": {
+              "raw": "{{baseUrl}}/api/users/profile",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "users", "profile"]
+            }
+          }
+        },
+        {
+          "name": "Update Profile",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"},
+              {"key": "Authorization", "value": "Bearer {{token}}"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Updated Name\",\n  \"rollNo\": \"23L-1234\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/users/profile",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "users", "profile"]
+            }
+          }
+        },
+        {
+          "name": "Upload Profile Image",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+            "body": {
+              "mode": "formdata",
+              "formdata": [{"key": "imageUrl", "type": "file", "src": []}]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/users/upload-image",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "users", "upload-image"]
+            }
+          }
+        },
+        {
+          "name": "Get Public Profile",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+            "url": {
+              "raw": "{{baseUrl}}/api/users/public/:email",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "users", "public", ":email"],
+              "variable": [{"key": "email", "value": "l233059@lhr.nu.edu.pk"}]
+            }
+          }
+        },
+        {
+          "name": "Get Reputation",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+            "url": {
+              "raw": "{{baseUrl}}/api/users/reputation/:email",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "users", "reputation", ":email"],
+              "variable": [{"key": "email", "value": "l233059@lhr.nu.edu.pk"}]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Messaging Service",
+      "item": [
+        {
+          "name": "Get All Chats",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+            "url": {
+              "raw": "{{baseUrl}}/api/messages/chats",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "messages", "chats"]
+            }
+          }
+        },
+        {
+          "name": "Create or Get Chat",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"},
+              {"key": "Authorization", "value": "Bearer {{token}}"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"otherEmail\": \"other@nu.edu.pk\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/messages/chats",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "messages", "chats"]
+            }
+          }
+        },
+        {
+          "name": "Get Chat by ID",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+            "url": {
+              "raw": "{{baseUrl}}/api/messages/chats/:chatId",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "messages", "chats", ":chatId"],
+              "variable": [{"key": "chatId", "value": "chat_id_here"}]
+            }
+          }
+        },
+        {
+          "name": "Send Message",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"},
+              {"key": "Authorization", "value": "Bearer {{token}}"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"content\": \"Hello, how are you?\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/messages/chats/:chatId",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "messages", "chats", ":chatId"],
+              "variable": [{"key": "chatId", "value": "chat_id_here"}]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Discussion Service",
+      "item": [
+        {
+          "name": "Create Room",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"},
+              {"key": "Authorization", "value": "Bearer {{token}}"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"General Discussion\",\n  \"isPublic\": true,\n  \"code\": \"ABC12345\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/messages/rooms",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "messages", "rooms"]
+            }
+          }
+        },
+        {
+          "name": "Get All Public Rooms",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+            "url": {
+              "raw": "{{baseUrl}}/api/messages/rooms",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "messages", "rooms"]
+            }
+          }
+        },
+        {
+          "name": "Join Private Room",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"},
+              {"key": "Authorization", "value": "Bearer {{token}}"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"ABC12345\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/messages/rooms/join",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "messages", "rooms", "join"]
+            }
+          }
+        },
+        {
+          "name": "Get Room Details",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+            "url": {
+              "raw": "{{baseUrl}}/api/messages/rooms/:roomId",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "messages", "rooms", ":roomId"],
+              "variable": [{"key": "roomId", "value": "room_id_here"}]
+            }
+          }
+        },
+        {
+          "name": "Create Topic",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"},
+              {"key": "Authorization", "value": "Bearer {{token}}"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Tech Talk\",\n  \"isPublic\": true,\n  \"code\": \"XYZ98765\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/messages/rooms/:roomId/topics",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "messages", "rooms", ":roomId", "topics"],
+              "variable": [{"key": "roomId", "value": "room_id_here"}]
+            }
+          }
+        },
+        {
+          "name": "Get Topics in Room",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+            "url": {
+              "raw": "{{baseUrl}}/api/messages/rooms/:roomId/topics",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "messages", "rooms", ":roomId", "topics"],
+              "variable": [{"key": "roomId", "value": "room_id_here"}]
+            }
+          }
+        },
+        {
+          "name": "Join Private Topic",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"},
+              {"key": "Authorization", "value": "Bearer {{token}}"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"XYZ98765\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/messages/topics/join",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "messages", "topics", "join"]
+            }
+          }
+        },
+        {
+          "name": "Get Topic Details",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+            "url": {
+              "raw": "{{baseUrl}}/api/messages/topics/:topicId",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "messages", "topics", ":topicId"],
+              "variable": [{"key": "topicId", "value": "topic_id_here"}]
+            }
+          }
+        },
+        {
+          "name": "Send Discussion Message",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"},
+              {"key": "Authorization", "value": "Bearer {{token}}"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"content\": \"This is my opinion on the topic\",\n  \"isAnonymous\": false\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/messages/topics/:topicId/messages",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "messages", "topics", ":topicId", "messages"],
+              "variable": [{"key": "topicId", "value": "topic_id_here"}]
+            }
+          }
+        },
+        {
+          "name": "Get Discussion Messages",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+            "url": {
+              "raw": "{{baseUrl}}/api/messages/topics/:topicId/messages",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "messages", "topics", ":topicId", "messages"],
+              "variable": [{"key": "topicId", "value": "topic_id_here"}]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Notification Service",
+      "item": [
+        {
+          "name": "Get My Notifications",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+            "url": {
+              "raw": "{{baseUrl}}/api/notifications",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "notifications"]
+            }
+          }
+        },
+        {
+          "name": "Get Notification Details",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+            "url": {
+              "raw": "{{baseUrl}}/api/notifications/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "notifications", ":id"],
+              "variable": [{"key": "id", "value": "notification_id_here"}]
+            }
+          }
+        },
+        {
+          "name": "Mark Notification as Read",
+          "request": {
+            "method": "PATCH",
+            "header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+            "url": {
+              "raw": "{{baseUrl}}/api/notifications/:id/read",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "notifications", ":id", "read"],
+              "variable": [{"key": "id", "value": "notification_id_here"}]
+            }
+          }
+        },
+        {
+          "name": "Mark All as Read",
+          "request": {
+            "method": "PATCH",
+            "header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+            "url": {
+              "raw": "{{baseUrl}}/api/notifications/read-all",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "notifications", "read-all"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Admin Service",
+      "item": [
+        {
+          "name": "Get All Users",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/users?page=1&limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "users"],
+              "query": [
+                {"key": "page", "value": "1"},
+                {"key": "limit", "value": "20"}
+              ]
+            }
+          }
+        },
+        {
+          "name": "Toggle Ban User",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"},
+              {"key": "Authorization", "value": "Bearer {{token}}"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"isBan\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/users/:email/toggle-ban",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "users", ":email", "toggle-ban"],
+              "variable": [{"key": "email", "value": "user@nu.edu.pk"}]
+            }
+          }
+        },
+        {
+          "name": "Get Admin Notifications",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/notifications",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "notifications"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. Transaction Service",
+      "item": [
+        {
+          "name": "Create Payment Intent",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"},
+              {"key": "Authorization", "value": "Bearer {{token}}"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 2800,\n  \"description\": \"Plan 1 - $10\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/transactions/create-payment",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "transactions", "create-payment"]
+            }
+          }
+        },
+        {
+          "name": "Get My Transactions",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+            "url": {
+              "raw": "{{baseUrl}}/api/transactions/my",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "transactions", "my"]
+            }
+          }
+        },
+        {
+          "name": "Get Transaction Details",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+            "url": {
+              "raw": "{{baseUrl}}/api/transactions/:id",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "transactions", ":id"],
+              "variable": [{"key": "id", "value": "transaction_id_here"}]
+            }
+          }
+        },
+        {
+          "name": "Stripe Webhook",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"},
+              {"key": "stripe-signature", "value": "webhook_signature"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/transactions/webhook",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "transactions", "webhook"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
