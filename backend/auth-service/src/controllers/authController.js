@@ -27,6 +27,10 @@ class AuthController {
         role,
         status: USER_STATUS.PENDING,
         emailVerified: false,
+        zone: null,
+        city: null,
+        category: null,
+        vehicleType: null,
         otp,
         otpExpiry
       });
@@ -174,7 +178,11 @@ class AuthController {
           id: user.id,
           name: user.name,
           email: user.email,
-          role: user.role
+          role: user.role,
+          zone: user.zone,
+          city: user.city,
+          category: user.category,
+          vehicleType: user.vehicleType
         }
       });
     } catch (error) {
@@ -225,6 +233,44 @@ class AuthController {
       res.json(user);
     } catch (error) {
       console.error('Get user error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+
+  async updateWorkerProfile(req, res) {
+    try {
+      if (req.user.role !== ROLES.WORKER) {
+        return res.status(403).json({ error: 'Only workers can update this profile section' });
+      }
+
+      const { zone, city, category, vehicleType } = req.body;
+      const updateData = {};
+
+      if (zone !== undefined) {
+        updateData.zone = typeof zone === 'string' ? zone.trim() : null;
+      }
+
+      if (city !== undefined) {
+        updateData.city = typeof city === 'string' ? city.trim() : null;
+      }
+
+      if (category !== undefined) {
+        updateData.category = category;
+      }
+
+      if (vehicleType !== undefined) {
+        updateData.vehicleType = vehicleType;
+      }
+
+      await userRepository.update(req.user.userId, updateData);
+      const updatedUser = await userRepository.getUserProfile(req.user.userId);
+
+      return res.json({
+        message: 'Worker profile updated successfully',
+        user: updatedUser
+      });
+    } catch (error) {
+      console.error('Update worker profile error:', error);
       res.status(500).json({ error: 'Internal server error' });
     }
   }

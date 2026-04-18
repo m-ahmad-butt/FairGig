@@ -55,6 +55,10 @@ class UserRepository {
         role: true,
         status: true,
         emailVerified: true,
+        zone: true,
+        city: true,
+        category: true,
+        vehicleType: true,
         createdAt: true
       }
     });

@@ -63,10 +63,51 @@ function validateRefreshToken(req, res, next) {
   next();
 }
 
+function validateWorkerProfileUpdate(req, res, next) {
+  const allowedKeys = ['zone', 'city', 'category', 'vehicleType'];
+  const payloadKeys = Object.keys(req.body || {});
+
+  if (payloadKeys.length === 0) {
+    return res.status(400).json({ error: 'At least one field is required for update' });
+  }
+
+  const invalidKeys = payloadKeys.filter((key) => !allowedKeys.includes(key));
+  if (invalidKeys.length > 0) {
+    return res.status(400).json({ error: `Invalid fields: ${invalidKeys.join(', ')}` });
+  }
+
+  const { zone, city, category, vehicleType } = req.body;
+
+  if (zone !== undefined && zone !== null && (typeof zone !== 'string' || zone.trim().length === 0)) {
+    return res.status(400).json({ error: 'zone must be a non-empty string or null' });
+  }
+
+  if (city !== undefined && city !== null && (typeof city !== 'string' || city.trim().length === 0)) {
+    return res.status(400).json({ error: 'city must be a non-empty string or null' });
+  }
+
+  if (category !== undefined && category !== null) {
+    const allowedCategories = ['rider', 'freelance'];
+    if (!allowedCategories.includes(category)) {
+      return res.status(400).json({ error: 'category must be either rider or freelance' });
+    }
+  }
+
+  if (vehicleType !== undefined && vehicleType !== null) {
+    const allowedVehicleTypes = ['bike', 'car', 'rickshaw'];
+    if (!allowedVehicleTypes.includes(vehicleType)) {
+      return res.status(400).json({ error: 'vehicleType must be one of bike, car, rickshaw' });
+    }
+  }
+
+  next();
+}
+
 module.exports = {
   validateSignup,
   validateLogin,
   validateOTP,
   validateEmail,
-  validateRefreshToken
+  validateRefreshToken,
+  validateWorkerProfileUpdate
 };
