@@ -1,9 +1,7 @@
-﻿require('dotenv').config();
-
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const { PrismaClient } = require('@prisma/client');
-
 const authRoutes = require('./routes/authRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 
@@ -16,38 +14,22 @@ app.use(express.json());
 
 app.get('/health', async (req, res) => {
   let db = 'down';
-
   try {
     await prisma.$runCommandRaw({ ping: 1 });
     db = 'up';
-  } catch (error) {
-    db = 'down';
-  }
-
-  return res.status(200).json({
-    service: process.env.SERVICE_NAME || 'auth-service',
-    status: 'ok',
-    db,
-    timestamp: new Date().toISOString()
-  });
+  } catch (error) {}
+  return res.status(200).json({ service: 'auth-service', status: 'ok', db, timestamp: new Date().toISOString() });
 });
 
-app.get('/', (req, res) => {
-  res.json({
-    message: 'auth-service is running'
-  });
-});
+app.get('/', (req, res) => res.json({ message: 'auth-service is running' }));
 
-// Routes
-app.use('/', authRoutes);
+app.use('/api/auth/admin', adminRoutes);
+app.use('/api/admin', adminRoutes);
 app.use('/admin', adminRoutes);
+app.use('/api/auth', authRoutes);
 
-// Error handling middleware
 app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({ error: 'Something went wrong!' });
+  res.status(500).json({ error: 'Internal server error' });
 });
 
-app.listen(port, '0.0.0.0', () => {
-  console.log('auth-service listening on port ' + port);
-});
+app.listen(port, '0.0.0.0');

@@ -1,4 +1,3 @@
-const { Prisma } = require('@prisma/client');
 const earningRepository = require('../repositories/earningRepository');
 const workSessionRepository = require('../repositories/workSessionRepository');
 const { serializeEarning, serializeEarningList } = require('../utils/serializer');
@@ -21,9 +20,9 @@ class EarningController {
 
       const created = await earningRepository.create({
         session_id,
-        gross_earned: new Prisma.Decimal(gross_earned),
-        platform_deductions: new Prisma.Decimal(platform_deductions),
-        net_received: new Prisma.Decimal(net_received)
+        gross_earned: Number(gross_earned),
+        platform_deductions: Number(platform_deductions),
+        net_received: Number(net_received)
       });
 
       return res.status(201).json(serializeEarning(created));
@@ -181,15 +180,15 @@ class EarningController {
       }
 
       if (gross_earned !== undefined) {
-        updateData.gross_earned = new Prisma.Decimal(gross_earned);
+        updateData.gross_earned = Number(gross_earned);
       }
 
       if (platform_deductions !== undefined) {
-        updateData.platform_deductions = new Prisma.Decimal(platform_deductions);
+        updateData.platform_deductions = Number(platform_deductions);
       }
 
       if (net_received !== undefined) {
-        updateData.net_received = new Prisma.Decimal(net_received);
+        updateData.net_received = Number(net_received);
       }
 
       const effectiveGrossEarned = Number(

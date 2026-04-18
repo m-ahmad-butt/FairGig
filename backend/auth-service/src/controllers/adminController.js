@@ -42,90 +42,52 @@ class AdminController {
     try {
       const { token } = req.params;
 
-      // Decode the token (userId is base64 encoded)
+      if (!token) {
+        return res.status(400).json({ error: 'Approval token is required' });
+      }
+
       const userId = Buffer.from(token, 'base64').toString('utf-8');
+
+      if (!/^[a-f\d]{24}$/i.test(userId)) {
+        return res.status(400).json({ error: 'Invalid approval token' });
+      }
 
       const user = await userRepository.findById(userId);
 
       if (!user) {
-        return res.status(404).send(`
-          <!DOCTYPE html>
-          <html>
-          <head>
-            <title>User Not Found</title>
-            <style>
-              body { font-family: Arial, sans-serif; text-align: center; padding: 50px; }
-              .error { color: #dc3545; }
-            </style>
-          </head>
-          <body>
-            <h1 class="error">User Not Found</h1>
-            <p>The user you're trying to approve doesn't exist.</p>
-          </body>
-          </html>
-        `);
+        return res.status(404).json({ error: 'User not found' });
       }
 
       if (user.status === USER_STATUS.ACTIVE) {
-        return res.send(`
-          <!DOCTYPE html>
-          <html>
-          <head>
-            <title>Already Approved</title>
-            <style>
-              body { font-family: Arial, sans-serif; text-align: center; padding: 50px; }
-              .success { color: #28a745; }
-            </style>
-          </head>
-          <body>
-            <h1 class="success">Already Approved</h1>
-            <p>${user.name} has already been approved.</p>
-          </body>
-          </html>
-        `);
+        return res.status(200).json({
+          message: 'User already approved',
+          user: {
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            role: user.role,
+            status: user.status
+          }
+        });
       }
 
       await userRepository.update(userId, { status: USER_STATUS.ACTIVE });
 
       await emailService.sendAccountApprovedEmail(user.email, user.name, user.role);
 
-      res.send(`
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <title>User Approved</title>
-          <style>
-            body { font-family: Arial, sans-serif; text-align: center; padding: 50px; }
-            .success { color: #28a745; }
-            .info { color: #6c757d; margin-top: 20px; }
-          </style>
-        </head>
-        <body>
-          <h1 class="success">✓ User Approved Successfully!</h1>
-          <p><strong>${user.name}</strong> (${user.email}) has been approved.</p>
-          <p class="info">Role: ${user.role}</p>
-          <p class="info">An approval email has been sent to the user.</p>
-        </body>
-        </html>
-      `);
+      return res.status(200).json({
+        message: 'User approved successfully',
+        user: {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          status: USER_STATUS.ACTIVE
+        }
+      });
     } catch (error) {
       console.error('Approve user by token error:', error);
-      res.status(500).send(`
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <title>Error</title>
-          <style>
-            body { font-family: Arial, sans-serif; text-align: center; padding: 50px; }
-            .error { color: #dc3545; }
-          </style>
-        </head>
-        <body>
-          <h1 class="error">Error</h1>
-          <p>Something went wrong. Please try again later.</p>
-        </body>
-        </html>
-      `);
+      return res.status(500).json({ error: 'Internal server error' });
     }
   }
 
