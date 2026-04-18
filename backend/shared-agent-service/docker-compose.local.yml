@@ -1,0 +1,23 @@
+﻿services:
+  shared-agent-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: shared-agent-service-local
+    env_file:
+      - .env
+    ports:
+      - '4005:4005'
+    depends_on:
+      - mongo
+
+  mongo:
+    image: mongo:7
+    container_name: shared-agent-service-mongo-local
+    ports:
+      - '0:27017'
+    volumes:
+      - mongo_data:/data/db
+
+volumes:
+  mongo_data:

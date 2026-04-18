@@ -1,0 +1,169 @@
+﻿services:
+  api-gateway:
+    build:
+      context: ./api-gateway
+      dockerfile: Dockerfile
+    container_name: api-gateway
+    env_file:
+      - ./api-gateway/.env
+    ports:
+      - '8080:8080'
+    depends_on:
+      - auth-service
+      - earnings-service
+      - grievance-service
+      - certificate-service
+      - shared-agent-service
+      - analytics-service
+      - anomaly-service
+
+  auth-service:
+    build:
+      context: ./auth-service
+      dockerfile: Dockerfile
+    container_name: auth-service
+    env_file:
+      - ./auth-service/.env
+    environment:
+      - DATABASE_URL=mongodb://auth-mongo:27017/auth_service
+    ports:
+      - '4001:4001'
+    depends_on:
+      - auth-mongo
+
+  earnings-service:
+    build:
+      context: ./earnings-service
+      dockerfile: Dockerfile
+    container_name: earnings-service
+    env_file:
+      - ./earnings-service/.env
+    environment:
+      - DATABASE_URL=mongodb://earnings-mongo:27017/earnings_service
+    ports:
+      - '4002:4002'
+    depends_on:
+      - earnings-mongo
+
+  grievance-service:
+    build:
+      context: ./grievance-service
+      dockerfile: Dockerfile
+    container_name: grievance-service
+    env_file:
+      - ./grievance-service/.env
+    environment:
+      - DATABASE_URL=mongodb://grievance-mongo:27017/grievance_service
+    ports:
+      - '4003:4003'
+    depends_on:
+      - grievance-mongo
+
+  certificate-service:
+    build:
+      context: ./certificate-service
+      dockerfile: Dockerfile
+    container_name: certificate-service
+    env_file:
+      - ./certificate-service/.env
+    environment:
+      - DATABASE_URL=mongodb://certificate-mongo:27017/certificate_service
+    ports:
+      - '4004:4004'
+    depends_on:
+      - certificate-mongo
+
+  shared-agent-service:
+    build:
+      context: ./shared-agent-service
+      dockerfile: Dockerfile
+    container_name: shared-agent-service
+    env_file:
+      - ./shared-agent-service/.env
+    environment:
+      - DATABASE_URL=mongodb://shared-agent-mongo:27017/shared_agent_service
+    ports:
+      - '4005:4005'
+    depends_on:
+      - shared-agent-mongo
+
+  analytics-service:
+    build:
+      context: ./analytics-service
+      dockerfile: Dockerfile
+    container_name: analytics-service
+    env_file:
+      - ./analytics-service/.env
+    environment:
+      - DATABASE_URL=mongodb://analytics-mongo:27017/analytics_service
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8001
+    ports:
+      - '8001:8001'
+    depends_on:
+      - analytics-mongo
+
+  anomaly-service:
+    build:
+      context: ./anomaly-service
+      dockerfile: Dockerfile
+    container_name: anomaly-service
+    env_file:
+      - ./anomaly-service/.env
+    environment:
+      - DATABASE_URL=mongodb://anomaly-mongo:27017/anomaly_service
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8002
+    ports:
+      - '8002:8002'
+    depends_on:
+      - anomaly-mongo
+
+  auth-mongo:
+    image: mongo:7
+    container_name: auth-mongo
+    volumes:
+      - auth_mongo_data:/data/db
+
+  earnings-mongo:
+    image: mongo:7
+    container_name: earnings-mongo
+    volumes:
+      - earnings_mongo_data:/data/db
+
+  grievance-mongo:
+    image: mongo:7
+    container_name: grievance-mongo
+    volumes:
+      - grievance_mongo_data:/data/db
+
+  certificate-mongo:
+    image: mongo:7
+    container_name: certificate-mongo
+    volumes:
+      - certificate_mongo_data:/data/db
+
+  shared-agent-mongo:
+    image: mongo:7
+    container_name: shared-agent-mongo
+    volumes:
+      - shared_agent_mongo_data:/data/db
+
+  analytics-mongo:
+    image: mongo:7
+    container_name: analytics-mongo
+    volumes:
+      - analytics_mongo_data:/data/db
+
+  anomaly-mongo:
+    image: mongo:7
+    container_name: anomaly-mongo
+    volumes:
+      - anomaly_mongo_data:/data/db
+
+volumes:
+  auth_mongo_data:
+  earnings_mongo_data:
+  grievance_mongo_data:
+  certificate_mongo_data:
+  shared_agent_mongo_data:
+  analytics_mongo_data:
+  anomaly_mongo_data:

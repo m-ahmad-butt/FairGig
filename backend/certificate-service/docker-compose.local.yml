@@ -1,0 +1,23 @@
+﻿services:
+  certificate-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: certificate-service-local
+    env_file:
+      - .env
+    ports:
+      - '4004:4004'
+    depends_on:
+      - mongo
+
+  mongo:
+    image: mongo:7
+    container_name: certificate-service-mongo-local
+    ports:
+      - '0:27017'
+    volumes:
+      - mongo_data:/data/db
+
+volumes:
+  mongo_data:

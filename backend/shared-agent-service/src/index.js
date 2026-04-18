@@ -6,7 +6,7 @@ const { PrismaClient } = require('@prisma/client');
 
 const app = express();
 const prisma = new PrismaClient();
-const port = Number(process.env.PORT || 4003);
+const port = Number(process.env.PORT || 4005);
 
 app.use(cors());
 app.use(express.json());
@@ -22,7 +22,7 @@ app.get('/health', async (req, res) => {
   }
 
   return res.status(200).json({
-    service: process.env.SERVICE_NAME || 'grievance-service',
+    service: process.env.SERVICE_NAME || 'shared-agent-service',
     status: 'ok',
     db,
     timestamp: new Date().toISOString()
@@ -31,10 +31,10 @@ app.get('/health', async (req, res) => {
 
 app.get('/', (req, res) => {
   res.json({
-    message: 'grievance-service is running'
+    message: 'shared-agent-service is running'
   });
 });
 
 app.listen(port, '0.0.0.0', () => {
-  console.log('grievance-service listening on port ' + port);
+  console.log('shared-agent-service listening on port ' + port);
 });

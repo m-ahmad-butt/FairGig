@@ -4,9 +4,9 @@ from datetime import datetime, timezone
 from fastapi import FastAPI
 from pymongo import MongoClient
 
-service_name = os.getenv('SERVICE_NAME', 'anomaly-service')
-port = int(os.getenv('PORT', '8002'))
-db_url = os.getenv('DATABASE_URL', 'mongodb://mongo:27017/anomaly_service')
+service_name = os.getenv('SERVICE_NAME', 'analytics-service')
+port = int(os.getenv('PORT', '8001'))
+db_url = os.getenv('DATABASE_URL', 'mongodb://mongo:27017/analytics_service')
 
 app = FastAPI(title=service_name)
 

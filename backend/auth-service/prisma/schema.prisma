@@ -1,0 +1,14 @@
+﻿generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+model HealthPing {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  service   String
+  createdAt DateTime @default(now())
+}

@@ -1,0 +1,23 @@
+﻿services:
+  auth-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: auth-service-local
+    env_file:
+      - .env
+    ports:
+      - '4001:4001'
+    depends_on:
+      - mongo
+
+  mongo:
+    image: mongo:7
+    container_name: auth-service-mongo-local
+    ports:
+      - '0:27017'
+    volumes:
+      - mongo_data:/data/db
+
+volumes:
+  mongo_data:
