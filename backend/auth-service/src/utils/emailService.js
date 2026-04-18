@@ -10,15 +10,25 @@ class EmailService {
         return;
       }
       
-      await transporter.sendMail({
+      console.log(`Sending email to ${to}...`);
+      
+      // Add timeout to prevent hanging
+      const emailPromise = transporter.sendMail({
         from: process.env.SMTP_USER,
         to,
         subject,
         html
       });
+      
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Email timeout')), 10000)
+      );
+      
+      await Promise.race([emailPromise, timeoutPromise]);
+      console.log(`Email sent successfully to ${to}`);
     } catch (error) {
-      console.error('Email error:', error);
-      throw error;
+      console.error('Email error:', error.message);
+      // Don't throw error - just log it so signup can continue
     }
   }
 
@@ -45,7 +55,7 @@ class EmailService {
 
   async sendAdminApprovalNotification(adminEmail, user) {
     const approvalToken = Buffer.from(user.id).toString('base64');
-    const approvalUrl = `${process.env.AUTH_SERVICE_URL || 'http://localhost:4001'}/api/auth/admin/approve/${approvalToken}`;
+    const approvalUrl = `${process.env.AUTH_SERVICE_URL || 'http://localhost:4001'}/admin/approve/${approvalToken}`;
     
     const subject = 'New User Approval Required - FairGig';
     const html = `

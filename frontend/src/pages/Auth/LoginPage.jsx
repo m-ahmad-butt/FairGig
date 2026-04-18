@@ -26,7 +26,9 @@ export default function LoginPage() {
       const result = await authService.login(formData.email, formData.password);
       
       toast.success(result.message);
-      
+
+      if (result.user.role === 'admin') {
+        navigate('/admin/dashboard');
       } else if (result.user.role === 'worker') {
         navigate('/worker/dashboard');
       } else if (result.user.role === 'verifier') {

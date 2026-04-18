@@ -14,6 +14,10 @@ class RefreshTokenRepository {
     return prisma.refreshToken.deleteMany({ where: { token } });
   }
 
+  async deleteByUserId(userId) {
+    return prisma.refreshToken.deleteMany({ where: { userId } });
+  }
+
   async deleteExpiredTokens() {
     return prisma.refreshToken.deleteMany({
       where: {

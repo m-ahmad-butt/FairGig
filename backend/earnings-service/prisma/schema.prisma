@@ -35,7 +35,7 @@ model WorkSession {
 model Earning {
   id           String      @id @default(uuid()) @map("_id")
   session_id   String
-  gross_amount Decimal
+  gross_amount Float
   created_at   DateTime    @default(now())
   session      WorkSession @relation(fields: [session_id], references: [id])
 

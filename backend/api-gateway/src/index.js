@@ -18,7 +18,16 @@ const targets = {
 };
 
 app.use(cors());
-app.use(express.json());
+
+// Don't parse body for proxy routes - let the proxy handle it
+app.use('/health', express.json());
+app.use('/', (req, res, next) => {
+  if (req.path === '/' || req.path === '/health') {
+    express.json()(req, res, next);
+  } else {
+    next();
+  }
+});
 
 app.get('/health', (req, res) => {
   res.status(200).json({
@@ -30,10 +39,19 @@ app.get('/health', (req, res) => {
 
 app.use('/api/auth', createProxyMiddleware({ 
   target: targets.auth, 
-  changeOrigin: true, 
-  pathRewrite: { '^/api/auth': '/api/auth' },
+  changeOrigin: true,
+  timeout: 30000,
+  proxyTimeout: 30000,
+  logLevel: 'debug',
   onProxyReq: (proxyReq, req, res) => {
-    console.log(`[Auth Proxy] ${req.method} ${req.path} -> ${targets.auth}${req.path}`);
+    console.log(`[Auth Proxy] ${req.method} ${req.url} -> ${targets.auth}${req.url}`);
+  },
+  onProxyRes: (proxyRes, req, res) => {
+    console.log(`[Auth Proxy Response] ${proxyRes.statusCode}`);
+  },
+  onError: (err, req, res) => {
+    console.error('[Auth Proxy Error]', err.message);
+    res.status(500).json({ error: 'Proxy error', message: err.message });
   }
 }));
 app.use('/api/earnings', createProxyMiddleware({ target: targets.earnings, changeOrigin: true, pathRewrite: { '^/api/earnings': '' } }));

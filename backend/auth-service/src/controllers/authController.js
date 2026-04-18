@@ -164,6 +164,9 @@ class AuthController {
 
       const refreshToken = tokenService.generateRefreshToken({ userId: user.id });
 
+      // Delete old refresh tokens for this user before creating a new one
+      await refreshTokenRepository.deleteByUserId(user.id);
+
       await refreshTokenRepository.create({
         userId: user.id,
         token: refreshToken,
