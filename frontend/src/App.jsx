@@ -12,6 +12,8 @@ import AdminDashboard from './pages/Admin/AdminDashboard';
 import ProfilePage from './pages/Profile/ProfilePage';
 import WorkerCommunityPage from './pages/Community/WorkerCommunityPage';
 import EarningsLogPage from './pages/Earnings/EarningsLogPage';
+import IncomeAnalyticsPage from './pages/Earnings/IncomeAnalyticsPage';
+import IncomeCertificatePage from './pages/Earnings/IncomeCertificatePage';
 
 function App() {
   return (
@@ -34,6 +36,8 @@ function App() {
         <Route path="/analyst/profile" element={<ProfilePage />} />
         <Route path="/worker/dashboard" element={<DashboardPage />} />
         <Route path="/worker/log-earnings" element={<EarningsLogPage />} />
+        <Route path="/worker/analytics" element={<IncomeAnalyticsPage />} />
+        <Route path="/worker/certificate" element={<IncomeCertificatePage />} />
         <Route path="/worker/community" element={<WorkerCommunityPage />} />
         <Route path="/verifier/dashboard" element={<DashboardPage />} />
         <Route path="/analyst/dashboard" element={<DashboardPage />} />

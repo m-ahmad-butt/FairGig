@@ -144,6 +144,19 @@ class EarningsService {
     }
     return result;
   }
+
+  // Get earnings by worker
+  async getEarningsByWorker(workerId) {
+    const response = await fetch(`${API_URL}/earnings?worker_id=${workerId}`, {
+      headers: getAuthHeaders()
+    });
+
+    const result = await response.json();
+    if (!response.ok) {
+      throw new Error(result.error || 'Failed to get earnings');
+    }
+    return result;
+  }
 }
 
 export default new EarningsService();
