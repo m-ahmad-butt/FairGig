@@ -62,7 +62,7 @@ build:backend-images:
   script:
     - IMAGE_REPO="$(eval "printf '%s' \"\${$IMAGE_VAR}\"")"
     - if [ -z "$IMAGE_REPO" ]; then IMAGE_REPO="${DOCKER_REGISTRY_URL}/${DOCKER_USERNAME}/${SERVICE_NAME}"; fi
-    - docker build --pull -t "${IMAGE_REPO}:${CI_COMMIT_SHORT_SHA}" -t "${IMAGE_REPO}:latest" "${SERVICE_PATH}"
+    - docker build -t "${IMAGE_REPO}:${CI_COMMIT_SHORT_SHA}" -t "${IMAGE_REPO}:latest" "${SERVICE_PATH}"
     - docker push "${IMAGE_REPO}:${CI_COMMIT_SHORT_SHA}"
     - docker push "${IMAGE_REPO}:latest"
   <<: *main_branch_rules
@@ -78,7 +78,7 @@ build:frontend-image:
   script:
     - IMAGE_REPO="${FRONTEND_IMAGE:-${DOCKER_REGISTRY_URL}/${DOCKER_USERNAME}/s-frontend}"
     - >
-      docker build --pull 
+      docker build 
       --build-arg VITE_API_URL="${VITE_API_URL}" 
       --build-arg VITE_CLERK_PUBLISHABLE_KEY="${VITE_CLERK_PUBLISHABLE_KEY}" 
       --build-arg VITE_GEOCODING_API_URL="${VITE_GEOCODING_API_URL}" 
