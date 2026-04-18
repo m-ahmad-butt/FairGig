@@ -4,26 +4,52 @@ const { canModerate } = require('../middleware/auth');
 const { toWorkerAlias, canViewPost, buildWorkerVisibilityWhere } = require('../utils/helpers');
 const { serializeCommunityPost } = require('../utils/serializer');
 const postRepository = require('../repositories/communityPostRepository');
+const { clusterCommunityPosts, rankTopPosts } = require('../services/communityClusteringService');
+
+function parsePositiveInt(value, defaultValue, min = 1, max = 100) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    return defaultValue;
+  }
+
+  const normalized = Math.trunc(parsed);
+  return Math.min(Math.max(normalized, min), max);
+}
+
+function parseThreshold(value, defaultValue = 0.35) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    return defaultValue;
+  }
+
+  return Math.min(Math.max(parsed, 0), 1);
+}
+
+function buildPostsWhere(user, query) {
+  const platform = normalizeText(query.platform);
+  const issue = normalizeText(query.issue);
+  const status = normalizeText(query.status).toLowerCase();
+  const validStatus = Object.values(COMMUNITY_STATUS).includes(status) ? status : null;
+
+  const where = canModerate(user)
+    ? (validStatus ? { status: validStatus } : {})
+    : buildWorkerVisibilityWhere(user, validStatus);
+
+  if (platform) {
+    where.platform = platform;
+  }
+
+  if (issue) {
+    where.issue = issue;
+  }
+
+  return where;
+}
 
 async function listPosts(req, res) {
   try {
     const sort = normalizeText(req.query.sort || 'new').toLowerCase();
-    const platform = normalizeText(req.query.platform);
-    const issue = normalizeText(req.query.issue);
-    const status = normalizeText(req.query.status).toLowerCase();
-    const validStatus = Object.values(COMMUNITY_STATUS).includes(status) ? status : null;
-
-    const where = canModerate(req.user)
-      ? (validStatus ? { status: validStatus } : {})
-      : buildWorkerVisibilityWhere(req.user, validStatus);
-
-    if (platform) {
-      where.platform = platform;
-    }
-
-    if (issue) {
-      where.issue = issue;
-    }
+    const where = buildPostsWhere(req.user, req.query);
 
     const posts = await postRepository.findManyPosts(where);
     const serialized = posts.map((post) => serializeCommunityPost(post, req.user));
@@ -85,6 +111,49 @@ async function createPost(req, res) {
   }
 }
 
+async function listTopPosts(req, res) {
+  try {
+    const where = buildPostsWhere(req.user, req.query);
+    const limit = parsePositiveInt(req.query.limit, 10, 1, 100);
+
+    const posts = await postRepository.findManyPosts(where);
+    const serialized = posts.map((post) => serializeCommunityPost(post, req.user));
+    const topPosts = rankTopPosts(serialized, limit);
+
+    return res.json({
+      count: topPosts.length,
+      limit,
+      posts: topPosts
+    });
+  } catch (error) {
+    console.error('List top community posts error:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+async function listPostClusters(req, res) {
+  try {
+    const where = buildPostsWhere(req.user, req.query);
+    const maxClusters = parsePositiveInt(req.query.max_clusters, 50, 1, 100);
+    const perClusterTopPosts = parsePositiveInt(req.query.per_cluster_limit, 3, 1, 20);
+    const titleSimilarityThreshold = parseThreshold(req.query.title_similarity_threshold, 0.35);
+
+    const posts = await postRepository.findManyPosts(where);
+    const serialized = posts.map((post) => serializeCommunityPost(post, req.user));
+
+    const clustered = clusterCommunityPosts(serialized, {
+      maxClusters,
+      perClusterTopPosts,
+      titleSimilarityThreshold
+    });
+
+    return res.json(clustered);
+  } catch (error) {
+    console.error('Cluster community posts error:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
 async function getPostForAccess(req, res) {
   const { postId } = req.params;
 
@@ -109,6 +178,8 @@ async function getPostForAccess(req, res) {
 
 module.exports = {
   listPosts,
+  listTopPosts,
+  listPostClusters,
   createPost,
   getPostForAccess
 };

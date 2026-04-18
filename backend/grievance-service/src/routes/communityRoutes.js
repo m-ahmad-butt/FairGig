@@ -14,6 +14,20 @@ router.get(
   communityPostController.listPosts
 );
 
+router.get(
+  '/posts/top',
+  authenticateToken,
+  requireRoles([ROLES.WORKER, ROLES.ADVOCATE, ROLES.ADMIN]),
+  communityPostController.listTopPosts
+);
+
+router.get(
+  '/posts/clusters',
+  authenticateToken,
+  requireRoles([ROLES.WORKER, ROLES.ADVOCATE, ROLES.ADMIN]),
+  communityPostController.listPostClusters
+);
+
 router.post(
   '/posts',
   authenticateToken,
