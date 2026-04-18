@@ -34,7 +34,7 @@ app.get('/health', (req, res) => {
 app.use('/api/admin', createProxyMiddleware({
   target: targets.auth,
   changeOrigin: true,
-  pathRewrite: { '^/api/admin': '/api/auth/admin' },
+  pathRewrite: (path) => `/api/auth/admin${path}`,
   timeout: 30000,
   proxyTimeout: 30000
 }));
@@ -42,7 +42,7 @@ app.use('/api/admin', createProxyMiddleware({
 app.use('/admin', createProxyMiddleware({
   target: targets.auth,
   changeOrigin: true,
-  pathRewrite: { '^/admin': '/api/auth/admin' },
+  pathRewrite: (path) => `/api/auth/admin${path}`,
   timeout: 30000,
   proxyTimeout: 30000
 }));
@@ -50,16 +50,74 @@ app.use('/admin', createProxyMiddleware({
 app.use('/api/auth', createProxyMiddleware({ 
   target: targets.auth, 
   changeOrigin: true,
+  pathRewrite: (path) => `/api/auth${path}`,
   timeout: 30000,
-  proxyTimeout: 30000
+  proxyTimeout: 30000,
+  onError: (err, req, res) => {
+    console.error('Auth service proxy error:', err.message);
+    res.status(502).json({ error: 'Auth service unavailable', details: err.message });
+  }
 }));
 
-app.use('/api/earnings', createProxyMiddleware({ target: targets.earnings, changeOrigin: true, pathRewrite: { '^/api/earnings': '' } }));
-app.use('/api/grievance', createProxyMiddleware({ target: targets.grievance, changeOrigin: true, pathRewrite: { '^/api/grievance': '' } }));
-app.use('/api/certificate', createProxyMiddleware({ target: targets.certificate, changeOrigin: true, pathRewrite: { '^/api/certificate': '' } }));
-app.use('/api/shared-agent', createProxyMiddleware({ target: targets.sharedAgent, changeOrigin: true, pathRewrite: { '^/api/shared-agent': '' } }));
-app.use('/api/analytics', createProxyMiddleware({ target: targets.analytics, changeOrigin: true, pathRewrite: { '^/api/analytics': '' } }));
-app.use('/api/anomaly', createProxyMiddleware({ target: targets.anomaly, changeOrigin: true, pathRewrite: { '^/api/anomaly': '' } }));
+app.use('/api/earnings', createProxyMiddleware({ 
+  target: targets.earnings, 
+  changeOrigin: true, 
+  pathRewrite: { '^/api/earnings': '' },
+  onError: (err, req, res) => {
+    console.error('Earnings service proxy error:', err.message);
+    res.status(502).json({ error: 'Earnings service unavailable' });
+  }
+}));
+
+app.use('/api/grievance', createProxyMiddleware({ 
+  target: targets.grievance, 
+  changeOrigin: true, 
+  pathRewrite: { '^/api/grievance': '' },
+  onError: (err, req, res) => {
+    console.error('Grievance service proxy error:', err.message);
+    res.status(502).json({ error: 'Grievance service unavailable' });
+  }
+}));
+
+app.use('/api/certificate', createProxyMiddleware({ 
+  target: targets.certificate, 
+  changeOrigin: true, 
+  pathRewrite: { '^/api/certificate': '' },
+  onError: (err, req, res) => {
+    console.error('Certificate service proxy error:', err.message);
+    res.status(502).json({ error: 'Certificate service unavailable' });
+  }
+}));
+
+app.use('/api/shared-agent', createProxyMiddleware({ 
+  target: targets.sharedAgent, 
+  changeOrigin: true, 
+  pathRewrite: { '^/api/shared-agent': '' },
+  onError: (err, req, res) => {
+    console.error('Shared agent service proxy error:', err.message);
+    res.status(502).json({ error: 'Shared agent service unavailable' });
+  }
+}));
+
+app.use('/api/analytics', createProxyMiddleware({ 
+  target: targets.analytics, 
+  changeOrigin: true, 
+  pathRewrite: { '^/api/analytics': '' },
+  onError: (err, req, res) => {
+    console.error('Analytics service proxy error:', err.message);
+    res.status(502).json({ error: 'Analytics service unavailable' });
+  }
+}));
+
+app.use('/api/anomaly', createProxyMiddleware({ 
+  target: targets.anomaly, 
+  changeOrigin: true, 
+  pathRewrite: { '^/api/anomaly': '' },
+  onError: (err, req, res) => {
+    console.error('Anomaly service proxy error:', err.message);
+    res.status(502).json({ error: 'Anomaly service unavailable' });
+  }
+}));
 
 app.get('/', (req, res) => {
   res.json({

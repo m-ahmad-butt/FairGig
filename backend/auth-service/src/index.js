@@ -32,4 +32,6 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Internal server error' });
 });
 
-app.listen(port, '0.0.0.0');
+app.listen(port, '0.0.0.0', () => {
+  console.log(`auth-service listening on port ${port}`);
+});
