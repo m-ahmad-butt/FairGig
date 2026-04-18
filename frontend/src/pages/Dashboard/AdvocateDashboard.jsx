@@ -22,6 +22,7 @@ import {
 } from 'recharts';
 import authService from '../../services/api/authService';
 import earningsService from '../../services/api/earningsService';
+import communityService from '../../services/api/communityService';
 import Navbar from '../../components/Navigation/Navbar';
 
 const RANGE_OPTIONS = [
@@ -127,6 +128,7 @@ export default function AdvocateDashboard() {
 
   const [workers, setWorkers] = useState([]);
   const [records, setRecords] = useState([]);
+  const [clusters, setClusters] = useState([]);
 
   const dateRange = searchParams.get('range') || '90';
 
@@ -165,18 +167,21 @@ export default function AdvocateDashboard() {
 
       setUser(profile);
 
-      const [workersResult, sessionsResult, earningsResult] = await Promise.allSettled([
+      const [workersResult, sessionsResult, earningsResult, clustersResult] = await Promise.allSettled([
         authService.getOnPlatformWorkers(),
         earningsService.getWorkSessions(),
-        earningsService.getAllEarnings()
+        earningsService.getAllEarnings(),
+        communityService.listPostClusters({ max_clusters: 6 })
       ]);
 
       const workerList = workersResult.status === 'fulfilled' ? normalizeWorkersPayload(workersResult.value) : [];
       const sessionsList = sessionsResult.status === 'fulfilled' ? sessionsResult.value : [];
       const earningsList = earningsResult.status === 'fulfilled' ? earningsResult.value : [];
+      const clustersList = clustersResult.status === 'fulfilled' ? clustersResult.value.clusters || [] : [];
 
       setWorkers(workerList);
       setRecords(mergeSessionsWithEarnings(sessionsList, earningsList));
+      setClusters(clustersList);
 
       if (
         workersResult.status !== 'fulfilled' ||
@@ -633,6 +638,45 @@ export default function AdvocateDashboard() {
               </p>
             )}
           </div>
+        </div>
+
+        <div className="mt-4 rounded-xl border border-zinc-200 bg-white p-5 shadow-sm">
+          <h2 className="text-xl font-bold tracking-tight text-zinc-900">Trending Grievance Clusters</h2>
+          <p className="mt-1 text-sm text-zinc-600">Top discussed issues among workers grouped by semantic similarity.</p>
+
+          {clusters.length > 0 ? (
+            <div className="mt-4 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {clusters.map((cluster) => (
+                <div key={cluster.cluster_id} className="rounded-lg border border-zinc-200 bg-zinc-50 p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="inline-flex items-center rounded-full bg-indigo-50 px-2 py-1 text-xs font-medium text-indigo-700 ring-1 ring-inset ring-indigo-700/10">
+                      {formatPlatformLabel(cluster.platform)}
+                    </span>
+                    <span className="text-xs font-medium text-zinc-500">{cluster.post_count} posts</span>
+                  </div>
+                  <h3 className="text-sm font-semibold text-zinc-900 line-clamp-2" title={cluster.representative_title}>
+                    "{cluster.representative_title}"
+                  </h3>
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    {cluster.keyword_signature.map((keyword, idx) => (
+                      <span key={idx} className="inline-flex items-center rounded-md bg-white px-1.5 py-0.5 text-[10px] font-medium text-zinc-600 border border-zinc-200">
+                        {keyword}
+                      </span>
+                    ))}
+                  </div>
+                  <div className="mt-3 flex items-center gap-3 text-xs text-zinc-500 border-t border-zinc-200 pt-3">
+                    <span className="flex items-center gap-1"><ArrowUpRight className="h-3 w-3 text-emerald-500" /> {cluster.vote_summary.upvotes}</span>
+                    <span className="flex items-center gap-1"><ArrowDownRight className="h-3 w-3 text-red-500" /> {cluster.vote_summary.downvotes}</span>
+                    <span className="ml-auto font-medium text-zinc-700">Score: {cluster.vote_summary.score}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="mt-4 rounded-lg border border-zinc-200 bg-zinc-50 p-3 text-sm text-zinc-500">
+              No recent grievance clusters detected.
+            </p>
+          )}
         </div>
       </div>
     </div>

@@ -53,6 +53,18 @@ class CommunityService {
     });
   }
 
+  async listPostClusters(params = {}) {
+    const query = new URLSearchParams();
+
+    if (params.platform) query.set('platform', params.platform);
+    if (params.issue) query.set('issue', params.issue);
+    if (params.status) query.set('status', params.status);
+    if (params.max_clusters) query.set('max_clusters', params.max_clusters);
+
+    const suffix = query.toString() ? `?${query.toString()}` : '';
+    return request(`/posts/clusters${suffix}`);
+  }
+
   async votePost(postId, direction) {
     return request(`/posts/${postId}/vote`, {
       method: 'POST',
