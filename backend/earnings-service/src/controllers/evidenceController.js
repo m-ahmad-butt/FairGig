@@ -6,9 +6,50 @@ const { triggerAnomalyDetection } = require('../utils/anomalyServiceClient');
 const { createEvidenceUploadUrls, uploadEvidenceBuffer } = require('../utils/evidenceUploadService');
 
 const AUTH_SERVICE_BASE_URL = process.env.AUTH_SERVICE_URL || 'http://auth-service:4001';
+const API_GATEWAY_URL = process.env.API_GATEWAY_URL || 'http://api-gateway:8080';
 
 function shouldTriggerAnomalyDetection(previousVerified, nextVerified) {
   return previousVerified !== true && nextVerified === true;
+}
+
+async function emitWorkerNotification(workerId, verificationStatus, reviewerNotes) {
+  try {
+    const notificationType = verificationStatus === true ? 'evidence_verified' : 
+                            verificationStatus === false ? 'evidence_flagged' : 
+                            'evidence_unverifiable';
+    
+    const titles = {
+      'evidence_verified': '✅ Your earnings were verified',
+      'evidence_flagged': '⚠️ Your earnings were flagged for review',
+      'evidence_unverifiable': '❓ Your earnings were marked as unverifiable'
+    };
+
+    const messages = {
+      'evidence_verified': 'Your earnings submission has been verified and approved.',
+      'evidence_flagged': 'A discrepancy was found in your submission. Please review the notes.',
+      'evidence_unverifiable': 'Your submission could not be verified. Please resubmit.'
+    };
+
+    await fetch(`${API_GATEWAY_URL}/internal/notify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        user_id: workerId,
+        type: notificationType,
+        title: titles[notificationType],
+        message: messages[notificationType],
+        data: {
+          status: verificationStatus,
+          reviewer_notes: reviewerNotes || null
+        }
+      })
+    }).catch((error) => {
+      console.error('Failed to emit worker notification:', error.message);
+      // Don't throw - notification failure shouldn't block verification
+    });
+  } catch (error) {
+    console.error('Error in emitWorkerNotification:', error);
+  }
 }
 
 async function fetchWorkerFromAuthService(workerId) {
@@ -371,6 +412,7 @@ class EvidenceController {
       if (req.body.session_id !== undefined) updateData.session_id = req.body.session_id;
       if (req.body.image_url !== undefined) updateData.image_url = req.body.image_url.trim();
       if (req.body.verified !== undefined) updateData.verified = req.body.verified;
+      if (req.body.reviewer_notes !== undefined) updateData.reviewer_notes = req.body.reviewer_notes || null;
 
       const updated = await evidenceRepository.update(req.params.id, updateData);
 
@@ -411,9 +453,19 @@ class EvidenceController {
         return sendNotFound(res, 'Evidence not found');
       }
 
-      const updated = await evidenceRepository.update(req.params.id, {
-        verified: req.body.verified
-      });
+      const updateData = { verified: req.body.verified };
+      if (req.body.reviewer_notes !== undefined) {
+        updateData.reviewer_notes = req.body.reviewer_notes || null;
+      }
+
+      const updated = await evidenceRepository.update(req.params.id, updateData);
+
+      // Emit notification to worker
+      emitWorkerNotification(
+        updated.worker_id,
+        updated.verified,
+        updated.reviewer_notes
+      );
 
       if (shouldTriggerAnomalyDetection(existing.verified, updated.verified)) {
         triggerAnomalyDetection({

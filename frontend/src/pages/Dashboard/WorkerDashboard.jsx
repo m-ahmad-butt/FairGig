@@ -8,10 +8,12 @@ import {
 	Car,
 	Clock3,
 	HandCoins,
-	Truck
+	Truck,
+	X
 } from 'lucide-react';
 import authService from '../../services/api/authService';
 import earningsService from '../../services/api/earningsService';
+import { initNotificationSocket } from '../../utils/socket';
 import FairGigLogo from '../../components/Brand/FairGigLogo';
 import Navbar from '../../components/Navigation/Navbar';
 
@@ -168,6 +170,7 @@ export default function WorkerDashboardPage() {
 	const [user, setUser] = useState(null);
 	const [loading, setLoading] = useState(true);
 	const [sessions, setSessions] = useState([]);
+	const [notifications, setNotifications] = useState([]);
 	const [stats, setStats] = useState({
 		totalEarnings: 0,
 		verifiedCount: 0,
@@ -180,6 +183,7 @@ export default function WorkerDashboardPage() {
 
 	useEffect(() => {
 		loadData();
+		setupNotificationListener();
 	}, []);
 
 	const loadData = async () => {
@@ -274,6 +278,39 @@ export default function WorkerDashboardPage() {
 		}
 	};
 
+	const setupNotificationListener = () => {
+		try {
+			const socket = initNotificationSocket();
+			
+			socket.on('new_notification', (data) => {
+				if (data && data.notification) {
+					const notification = data.notification;
+					
+					setNotifications(prev => {
+						const updated = [notification, ...prev];
+						return updated.slice(0, 10);
+					});
+
+					setTimeout(() => {
+						setNotifications(prev => 
+							prev.filter(n => n.id !== notification.id)
+						);
+					}, 6000);
+				}
+			});
+
+			return () => {
+				socket.off('new_notification');
+			};
+		} catch (error) {
+			console.error('Failed to setup notification listener:', error);
+		}
+	};
+
+	const dismissNotification = (notificationId) => {
+		setNotifications(prev => prev.filter(n => n.id !== notificationId));
+	};
+
 	const weeklyTrend = useMemo(() => {
 		const grouped = new Map();
 
@@ -330,6 +367,34 @@ export default function WorkerDashboardPage() {
 	return (
 		<div className="min-h-screen bg-zinc-100 pb-8">
 			<Navbar user={user} />
+
+			<div className="fixed top-20 right-4 z-50 space-y-2">
+				{notifications.map((notification) => (
+					<div
+						key={notification.id}
+						className={`rounded-lg shadow-lg p-4 text-white max-w-sm animate-in fade-in slide-in-from-top ${
+							notification.type === 'evidence_verified'
+								? 'bg-green-500'
+								: notification.type === 'evidence_flagged'
+								? 'bg-red-500'
+								: 'bg-amber-500'
+						}`}
+					>
+						<div className="flex items-start justify-between gap-3">
+							<div className="flex-1">
+								<p className="font-semibold">{notification.title}</p>
+								<p className="text-sm mt-1 opacity-90">{notification.message}</p>
+							</div>
+							<button
+								onClick={() => dismissNotification(notification.id)}
+								className="text-white hover:opacity-75 flex-shrink-0"
+							>
+								<X className="w-4 h-4" />
+							</button>
+						</div>
+					</div>
+				))}
+			</div>
 
 			<div className="mx-auto max-w-6xl px-4 pt-5 sm:px-6 lg:px-8">
 				<div className="mb-4">

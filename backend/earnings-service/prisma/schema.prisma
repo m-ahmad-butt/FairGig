@@ -46,13 +46,15 @@ model Earning {
 }
 
 model Evidance {
-  id         String      @id @default(uuid()) @map("_id")
-  worker_id  String
-  session_id String      @unique
-  image_url  String
-  verified   Boolean     @default(false)
-  created_at DateTime    @default(now())
-  session    WorkSession @relation(fields: [session_id], references: [id])
+  id             String      @id @default(uuid()) @map("_id")
+  worker_id      String
+  session_id     String      @unique
+  image_url      String
+  verified       Boolean     @default(false)
+  reviewer_notes String?
+  created_at     DateTime    @default(now())
+  updated_at     DateTime    @updatedAt
+  session        WorkSession @relation(fields: [session_id], references: [id])
 
   @@index([worker_id])
   @@index([verified])

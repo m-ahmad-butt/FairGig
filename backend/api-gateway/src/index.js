@@ -1,10 +1,23 @@
 ﻿require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const http = require('http');
+const { Server } = require('socket.io');
 const { createProxyMiddleware } = require('http-proxy-middleware');
 
 const app = express();
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+    methods: ['GET', 'POST']
+  }
+});
+
 const port = Number(process.env.PORT || 8080);
+
+// Store connected users for notification broadcasting
+const connectedUsers = new Map();
 
 const targets = {
   auth: process.env.AUTH_SERVICE_URL,
@@ -15,6 +28,52 @@ const targets = {
   analytics: process.env.ANALYTICS_SERVICE_URL,
   anomaly: process.env.ANOMALY_SERVICE_URL
 };
+
+app.use(cors());
+
+// Socket.io namespace for notifications
+const notificationNamespace = io.of('/socket.io/notifications');
+
+notificationNamespace.on('connection', (socket) => {
+  const token = socket.handshake.auth.token;
+  
+  // For now, we'll store by socket id, but could decode JWT to get user_id
+  connectedUsers.set(socket.id, {
+    token,
+    userId: null // Will be set when user context is available
+  });
+
+  socket.on('disconnect', () => {
+    connectedUsers.delete(socket.id);
+  });
+});
+
+// Endpoint to emit notifications (called by other services)
+app.post('/internal/notify', express.json(), (req, res) => {
+  const { user_id, type, title, message, data } = req.body;
+  
+  if (!user_id || !type) {
+    return res.status(400).json({ error: 'user_id and type are required' });
+  }
+
+  const notification = {
+    id: Date.now().toString(),
+    type,
+    title: title || 'Notification',
+    message: message || '',
+    data: data || {},
+    timestamp: new Date().toISOString(),
+    read: false
+  };
+
+  // Broadcast to all connected sockets (ideally filter by user_id in namespace)
+  notificationNamespace.emit('new_notification', {
+    user_id,
+    notification
+  });
+
+  res.json({ success: true, notification });
+});
 
 app.use(cors());
 
@@ -131,7 +190,7 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Gateway error' });
 });
 
-app.listen(port, '0.0.0.0', () => {
+server.listen(port, '0.0.0.0', () => {
   console.log(`api-gateway listening on port ${port}`);
   console.log('Service targets:', targets);
 });

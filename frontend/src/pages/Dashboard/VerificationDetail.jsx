@@ -337,23 +337,25 @@ export default function VerificationDetailPage() {
           <div className="lg:col-span-2">
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
               <div className="p-4 border-b border-gray-200">
-                <div className="flex bg-gray-100 rounded-lg p-1">
+                <div className="relative flex bg-gray-100 rounded-lg p-1">
+                  <div 
+                    className="absolute top-1 bottom-1 w-[calc(50%-4px)] bg-gray-900 rounded-md transition-all duration-200 ease-out"
+                    style={{ 
+                      transform: activeTab === 'logged' ? 'translateX(0)' : 'translateX(100%)' 
+                    }}
+                  />
                   <button
                     onClick={() => setActiveTab('logged')}
-                    className={`flex-1 py-2 px-4 text-sm font-medium rounded-md transition-all ${
-                      activeTab === 'logged' 
-                        ? 'bg-gray-900 text-white' 
-                        : 'text-gray-600 hover:text-gray-900'
+                    className={`flex-1 py-2 px-4 text-sm font-medium rounded-md relative z-10 ${
+                      activeTab === 'logged' ? 'text-white' : 'text-gray-600'
                     }`}
                   >
                     Logged Data
                   </button>
                   <button
                     onClick={() => setActiveTab('ai')}
-                    className={`flex-1 py-2 px-4 text-sm font-medium rounded-md transition-all ${
-                      activeTab === 'ai' 
-                        ? 'bg-gray-900 text-white' 
-                        : 'text-gray-600 hover:text-gray-900'
+                    className={`flex-1 py-2 px-4 text-sm font-medium rounded-md relative z-10 ${
+                      activeTab === 'ai' ? 'text-white' : 'text-gray-600'
                     }`}
                   >
                     AI Analysis
@@ -443,23 +445,33 @@ export default function VerificationDetailPage() {
                           <div className="space-y-2 text-sm">
                             <div className="flex justify-between">
                               <span className="text-gray-500">Gross</span>
-                              <span className="text-gray-900">{formatCurrency(aiAnalysis.extraction_summary.detected_gross)}</span>
+                              <span className={aiAnalysis.extraction_summary.detected_gross ? 'text-gray-900' : 'text-gray-400 italic'}>
+                                {aiAnalysis.extraction_summary.detected_gross ? formatCurrency(aiAnalysis.extraction_summary.detected_gross) : '— not detected'}
+                              </span>
                             </div>
                             <div className="flex justify-between">
                               <span className="text-gray-500">Deductions</span>
-                              <span className="text-gray-900">-{formatCurrency(aiAnalysis.extraction_summary.detected_deductions)}</span>
+                              <span className={aiAnalysis.extraction_summary.detected_deductions ? 'text-gray-900' : 'text-gray-400 italic'}>
+                                {aiAnalysis.extraction_summary.detected_deductions ? `-${formatCurrency(aiAnalysis.extraction_summary.detected_deductions)}` : '— not detected'}
+                              </span>
                             </div>
                             <div className="flex justify-between">
                               <span className="text-gray-500">Net</span>
-                              <span className="text-gray-900 font-medium">{formatCurrency(aiAnalysis.extraction_summary.detected_net)}</span>
+                              <span className={aiAnalysis.extraction_summary.detected_net ? 'text-gray-900 font-medium' : 'text-gray-400 italic'}>
+                                {aiAnalysis.extraction_summary.detected_net ? formatCurrency(aiAnalysis.extraction_summary.detected_net) : '— not detected'}
+                              </span>
                             </div>
                             <div className="flex justify-between">
                               <span className="text-gray-500">Platform</span>
-                              <span className="text-gray-900">{aiAnalysis.extraction_summary.detected_platform}</span>
+                              <span className={aiAnalysis.extraction_summary.detected_platform ? 'text-gray-900' : 'text-gray-400 italic'}>
+                                {aiAnalysis.extraction_summary.detected_platform || '— not detected'}
+                              </span>
                             </div>
                             <div className="flex justify-between">
                               <span className="text-gray-500">Date</span>
-                              <span className="text-gray-900">{aiAnalysis.extraction_summary.detected_date}</span>
+                              <span className={aiAnalysis.extraction_summary.detected_date ? 'text-gray-900' : 'text-gray-400 italic'}>
+                                {aiAnalysis.extraction_summary.detected_date || '— not detected'}
+                              </span>
                             </div>
                           </div>
                         </div>
@@ -467,23 +479,37 @@ export default function VerificationDetailPage() {
                         <div>
                           <h3 className="text-sm font-medium text-gray-700 mb-3">Discrepancy Indicators</h3>
                           <div className="space-y-2">
-                            {aiAnalysis.discrepancies.map((item, i) => (
-                              <div key={i} className="flex items-center justify-between text-sm py-2 border-b border-gray-100 last:border-0">
-                                <div>
-                                  <span className="text-gray-900 capitalize">{item.field}</span>
+                            {aiAnalysis.discrepancies.map((item, i) => {
+                              const loggedDisplay = item.logged !== undefined && item.logged !== null 
+                                ? (item.field === 'platform' || item.field === 'date' ? item.logged : formatCurrency(item.logged))
+                                : '— not detected';
+                              const detectedDisplay = item.detected !== undefined && item.detected !== null
+                                ? (item.field === 'platform' || item.field === 'date' ? item.detected : formatCurrency(item.detected))
+                                : '— not detected';
+                              const hasLogged = item.logged !== undefined && item.logged !== null;
+                              const hasDetected = item.detected !== undefined && item.detected !== null;
+                              const isMatch = item.match === true;
+                              const isMismatch = item.match === false;
+                              const notDetected = !hasLogged || !hasDetected;
+                              
+                              return (
+                                <div key={i} className={`flex items-center justify-between text-sm py-2 border-b border-gray-100 last:border-0 ${isMismatch ? 'bg-red-50 -mx-2 px-2 rounded' : ''}`}>
+                                  <div className="flex-1">
+                                    <span className="text-gray-900 capitalize">{item.field}</span>
+                                  </div>
+                                  <div className="flex items-center gap-2 text-xs">
+                                    <span className="text-gray-500 w-20 text-right">{loggedDisplay}</span>
+                                    <span className="text-gray-400">|</span>
+                                    <span className={`w-20 ${hasDetected ? 'text-gray-900' : 'text-gray-400 italic'}`}>{detectedDisplay}</span>
+                                    <span className="w-8 text-center">
+                                      {isMatch && '✅'}
+                                      {isMismatch && '⚠️'}
+                                      {notDetected && !isMatch && !isMismatch && '—'}
+                                    </span>
+                                  </div>
                                 </div>
-                                <div className="flex items-center gap-2">
-                                  <span className="text-gray-500">{item.logged}</span>
-                                  <span className="text-gray-400">→</span>
-                                  <span className={`${item.match ? 'text-green-600' : 'text-amber-600'}`}>
-                                    {item.detected}
-                                  </span>
-                                  <span className={item.match ? 'text-green-500' : 'text-amber-500'}>
-                                    {item.match ? '✓' : '⚠'}
-                                  </span>
-                                </div>
-                              </div>
-                            ))}
+                              );
+                            })}
                           </div>
                         </div>
 
