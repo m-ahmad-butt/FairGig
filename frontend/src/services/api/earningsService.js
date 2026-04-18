@@ -1,6 +1,5 @@
-const API_URL = import.meta.env.VITE_API_GATEWAY_URL 
-  ? `${import.meta.env.VITE_API_GATEWAY_URL}/earnings` 
-  : 'http://localhost:8080/api/earnings';
+const GATEWAY_API_BASE = import.meta.env.VITE_API_GATEWAY_URL || 'http://localhost:8080/api';
+const API_URL = `${GATEWAY_API_BASE}/earnings`;
 
 const getAuthHeaders = () => {
   const token = localStorage.getItem('accessToken');
@@ -271,6 +270,27 @@ class EarningsService {
     const result = await response.json();
     if (!response.ok) {
       throw new Error(result.error || 'Failed to get earning');
+    }
+    return result;
+  }
+
+  // AI screenshot verifier (shared-agent-service)
+  async verifyScreenshotWithAI(workerId, sessionId) {
+    const response = await fetch(`${GATEWAY_API_BASE}/shared-agent/ai/screenshot-verifier`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeaders()
+      },
+      body: JSON.stringify({
+        worker_id: workerId,
+        session_id: sessionId
+      })
+    });
+
+    const result = await response.json();
+    if (!response.ok) {
+      throw new Error(result.detail || result.error || 'Failed to run screenshot verification');
     }
     return result;
   }

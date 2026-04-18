@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+import logging
 
 from fastapi import FastAPI, Header, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -13,6 +14,7 @@ from src.tools.earnings_service_adapter import HttpEarningsServiceAdapter
 from src.tools.interfaces import AdapterError
 
 settings = get_settings()
+logger = logging.getLogger(__name__)
 
 app = FastAPI(title=settings.service_name)
 app.add_middleware(
@@ -124,7 +126,8 @@ def verify_screenshot(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     except HTTPException:
         raise
-    except Exception:
+    except Exception as exc:
+        logger.exception('AI ScreenShotVerifier runtime failure: %s', exc)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail='AI ScreenShotVerifier failed to process the request'

@@ -10,8 +10,7 @@ from src.config import Settings
 from src.models.schemas import (
     ActualEarningData,
     AgentVerificationOutput,
-    ReceiptExtraction,
-    ReceiptExtractionDraft
+    ReceiptExtraction
 )
 from src.prompts.screenshot_verifier_prompt import (
     REACT_AGENT_PROMPT,
@@ -28,33 +27,92 @@ class VisionReceiptAnalyzer:
             model=model_name,
             temperature=0
         )
-        self._structured_llm = self._vision_llm.with_structured_output(ReceiptExtractionDraft)
 
     def analyze(self, image_url: str) -> ReceiptExtraction:
-        response = self._structured_llm.invoke(
-            [
-                HumanMessage(
-                    content=[
-                        {'type': 'text', 'text': VISION_RECEIPT_PROMPT},
-                        {'type': 'image_url', 'image_url': {'url': image_url}}
-                    ]
-                )
-            ]
-        )
+        prompt = f"""{VISION_RECEIPT_PROMPT}
 
-        gross_amount = round(max(float(response.gross_amount), 0.0), 2)
-        platform_deduction = round(max(float(response.platform_deduction or 0.0), 0.0), 2)
+Return STRICT JSON only with this schema:
+{{
+  \"platform_name\": \"string\",
+  \"gross_amount\": 0,
+  \"platform_deduction\": 0,
+  \"deduction_label\": \"string or null\"
+}}
+
+If values are unreadable, use:
+- platform_name: \"unknown\"
+- gross_amount: 0
+- platform_deduction: 0
+- deduction_label: null
+"""
+
+        payload = {}
+        try:
+            response = self._vision_llm.invoke(
+                [
+                    HumanMessage(
+                        content=[
+                            {'type': 'text', 'text': prompt},
+                            {'type': 'image_url', 'image_url': {'url': image_url}}
+                        ]
+                    )
+                ]
+            )
+            payload = self._extract_payload(response.content)
+        except Exception:
+            payload = {}
+
+        platform_name = str(payload.get('platform_name') or 'unknown').strip() or 'unknown'
+        gross_amount = round(max(self._to_float(payload.get('gross_amount')), 0.0), 2)
+        platform_deduction = round(max(self._to_float(payload.get('platform_deduction')), 0.0), 2)
         net_amount = round(max(gross_amount - platform_deduction, 0.0), 2)
 
-        platform_name = (response.platform_name or 'unknown').strip() or 'unknown'
+        deduction_label = payload.get('deduction_label')
+        if deduction_label is not None:
+            deduction_label = str(deduction_label).strip() or None
 
         return ReceiptExtraction(
             platform_name=platform_name,
             gross_amount=gross_amount,
             platform_deduction=platform_deduction,
             net_amount=net_amount,
-            deduction_label=response.deduction_label
+            deduction_label=deduction_label
         )
+
+    def _extract_payload(self, content) -> dict:
+        if isinstance(content, list):
+            text = ''.join(
+                part.get('text', '') if isinstance(part, dict) else str(part)
+                for part in content
+            )
+        else:
+            text = str(content or '')
+
+        text = text.strip()
+        if not text:
+            return {}
+
+        try:
+            parsed = json.loads(text)
+            return parsed if isinstance(parsed, dict) else {}
+        except json.JSONDecodeError:
+            pass
+
+        match = re.search(r'\{.*\}', text, re.DOTALL)
+        if not match:
+            return {}
+
+        try:
+            parsed = json.loads(match.group(0))
+            return parsed if isinstance(parsed, dict) else {}
+        except json.JSONDecodeError:
+            return {}
+
+    def _to_float(self, value) -> float:
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return 0.0
 
 
 class AIScreenshotVerifierAgent:

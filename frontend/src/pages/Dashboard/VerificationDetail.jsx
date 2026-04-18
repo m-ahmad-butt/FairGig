@@ -7,6 +7,48 @@ import Navbar from '../../components/Navigation/Navbar';
 
 const formatCurrency = (value) => `PKR ${Number(value || 0).toLocaleString()}`;
 
+function toNumber(value) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function normalizePlatform(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function toDateISO(value) {
+  if (!value) {
+    return '';
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return String(value);
+  }
+
+  return parsed.toISOString().split('T')[0];
+}
+
+function isNumericMatch(observed, expected, toleranceRatio = 0.1) {
+  const observedNumber = toNumber(observed);
+  const expectedNumber = toNumber(expected);
+  const denominator = Math.max(Math.abs(expectedNumber), 1);
+  return Math.abs(observedNumber - expectedNumber) / denominator <= toleranceRatio;
+}
+
+function formatDisplayDate(value) {
+  if (!value) {
+    return '-';
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return String(value);
+  }
+
+  return parsed.toLocaleDateString('en-PK');
+}
+
 export default function VerificationDetailPage() {
   const navigate = useNavigate();
   const { id } = useParams();
@@ -38,17 +80,27 @@ export default function VerificationDetailPage() {
         return;
       }
 
-      const [evidenceData, sessionData, earningData] = await Promise.all([
-        earningsService.getEvidenceById(id),
-        earningsService.getWorkSessionById(id).catch(() => null),
-        earningsService.getEarningBySession(id).then(r => Array.isArray(r) ? r[0] : r).catch(() => null)
+      const evidenceData = await earningsService.getEvidenceById(id);
+
+      const sessionId = evidenceData?.session_id;
+      if (!sessionId) {
+        throw new Error('Evidence is missing a linked session_id');
+      }
+
+      const [sessionData, earningResponse] = await Promise.all([
+        earningsService.getWorkSessionById(sessionId).catch(() => null),
+        earningsService.getEarningBySession(sessionId).catch(() => [])
       ]);
+
+      const earningData = Array.isArray(earningResponse)
+        ? (earningResponse[0] || null)
+        : earningResponse;
 
       setEvidence(evidenceData);
       setSession(sessionData);
       setEarning(earningData);
 
-      loadAiAnalysis(evidenceData.image_url);
+      loadAiAnalysis({ evidenceData, sessionData, earningData });
     } catch (error) {
       console.error('Failed to load verification detail:', error);
       toast.error('Failed to load verification details');
@@ -57,58 +109,84 @@ export default function VerificationDetailPage() {
     }
   };
 
-  const loadAiAnalysis = async (imageUrl) => {
+  const loadAiAnalysis = async ({ evidenceData, sessionData, earningData }) => {
     setAiLoading(true);
     setAiError(false);
     try {
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      const mockAnalysis = {
+      const workerId = evidenceData?.worker_id;
+      const sessionId = evidenceData?.session_id || sessionData?.id;
+
+      if (!workerId || !sessionId) {
+        throw new Error('Missing worker/session linkage for AI verification');
+      }
+
+      const agentResult = await earningsService.verifyScreenshotWithAI(workerId, sessionId);
+
+      const detectedGross = toNumber(agentResult?.data_from_picture?.gross_amount);
+      const detectedDeductions = toNumber(agentResult?.data_from_picture?.platform_deduction);
+      const detectedNet = toNumber(agentResult?.data_from_picture?.net_amount);
+      const detectedPlatform = agentResult?.data_from_picture?.platform_name || sessionData?.platform || 'Unknown';
+      const loggedGross = toNumber(agentResult?.actual_data?.gross_amount ?? earningData?.gross_earned);
+      const loggedDeductions = toNumber(agentResult?.actual_data?.platform_deduction ?? earningData?.platform_deductions);
+      const loggedNet = toNumber(agentResult?.actual_data?.net_amount ?? earningData?.net_received);
+      const loggedPlatform = agentResult?.actual_data?.platform_name || sessionData?.platform || 'Unknown';
+      const loggedDate = sessionData?.session_date || new Date().toISOString().split('T')[0];
+      const anomalyTypes = Array.isArray(agentResult?.anomaly_types) ? agentResult.anomaly_types : [];
+      const anomalyDetected = Boolean(agentResult?.anomaly_detected);
+      const confidenceScore = toNumber(agentResult?.confidence_score);
+      const confidenceThreshold = toNumber(agentResult?.anomaly_confidence_threshold || 80);
+
+      const mappedAnalysis = {
         extraction_summary: {
-          detected_gross: earning?.gross_earned || 2500,
-          detected_deductions: earning?.platform_deductions || 350,
-          detected_net: earning?.net_received || 2150,
-          detected_platform: session?.platform || 'Bykea',
-          detected_date: session?.session_date || new Date().toISOString().split('T')[0]
+          detected_gross: detectedGross,
+          detected_deductions: detectedDeductions,
+          detected_net: detectedNet,
+          detected_platform: detectedPlatform,
+          detected_date: toDateISO(loggedDate)
         },
         discrepancies: [
           {
             field: 'gross',
-            logged: earning?.gross_earned || 2500,
-            detected: earning?.gross_earned || 2500,
-            match: true
+            logged: loggedGross,
+            detected: detectedGross,
+            match: isNumericMatch(detectedGross, loggedGross)
           },
           {
             field: 'deductions',
-            logged: earning?.platform_deductions || 350,
-            detected: 325,
-            match: false
+            logged: loggedDeductions,
+            detected: detectedDeductions,
+            match: isNumericMatch(detectedDeductions, loggedDeductions)
           },
           {
             field: 'net',
-            logged: earning?.net_received || 2150,
-            detected: 2175,
-            match: false
+            logged: loggedNet,
+            detected: detectedNet,
+            match: isNumericMatch(detectedNet, loggedNet)
           },
           {
             field: 'platform',
-            logged: session?.platform || 'Bykea',
-            detected: 'Bykea',
-            match: true
+            logged: loggedPlatform,
+            detected: detectedPlatform,
+            match: normalizePlatform(detectedPlatform) === normalizePlatform(loggedPlatform)
           },
           {
             field: 'date',
-            logged: session?.session_date || new Date().toISOString().split('T')[0],
-            detected: session?.session_date || new Date().toISOString().split('T')[0],
+            logged: toDateISO(loggedDate),
+            detected: toDateISO(loggedDate),
             match: true
           }
         ],
-        verdict: 'discrepancy_found',
-        explanation: 'AI detected a minor discrepancy in platform deductions. The screenshot shows PKR 325 in fees, but the logged amount is PKR 350. Net calculation is also off by PKR 25.',
-        confidence: 87
+        verdict: anomalyDetected ? 'discrepancy_found' : 'likely_valid',
+        explanation: anomalyDetected
+          ? `AI flagged this submission (${anomalyTypes.join(', ') || 'mismatch detected'}) at ${confidenceScore}% confidence, below threshold ${confidenceThreshold}%.`
+          : `AI found no major mismatch at ${confidenceScore}% confidence (threshold ${confidenceThreshold}%).`,
+        confidence: confidenceScore,
+        anomaly_types: anomalyTypes,
+        cached: Boolean(agentResult?.cached),
+        evaluated_at: agentResult?.evaluated_at || null
       };
 
-      setAiAnalysis(mockAnalysis);
+      setAiAnalysis(mappedAnalysis);
     } catch (error) {
       console.error('AI analysis failed:', error);
       setAiError(true);
@@ -137,10 +215,7 @@ export default function VerificationDetailPage() {
     }
     setSubmitting(true);
     try {
-      await earningsService.updateEvidence(id, { 
-        verified: false,
-        reviewer_notes: reviewerNotes
-      });
+      await earningsService.updateEvidence(id, { verified: false });
       toast.success('Evidence flagged');
       navigate('/verifier/dashboard');
     } catch (error) {
@@ -151,13 +226,16 @@ export default function VerificationDetailPage() {
   };
 
   const handleUnverifiable = async () => {
+    if (!reviewerNotes.trim()) {
+      toast.error('Reviewer notes are required when marking unverifiable');
+      return;
+    }
+
     setSubmitting(true);
     try {
-      await earningsService.updateEvidence(id, { 
-        verified: null,
-        reviewer_notes: reviewerNotes
-      });
-      toast.success('Marked as unverifiable');
+      // Backend currently supports boolean verified only, so unverifiable is stored as flagged.
+      await earningsService.updateEvidence(id, { verified: false });
+      toast.success('Marked as unverifiable (saved as flagged)');
       navigate('/verifier/dashboard');
     } catch (error) {
       toast.error('Failed to update evidence');
@@ -311,7 +389,7 @@ export default function VerificationDetailPage() {
                     <div className="space-y-2 text-sm">
                       <div className="flex justify-between">
                         <span className="text-gray-500">Date</span>
-                        <span className="text-gray-900">{session?.session_date || '-'}</span>
+                        <span className="text-gray-900">{formatDisplayDate(session?.session_date)}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-gray-500">Platform</span>
@@ -319,7 +397,11 @@ export default function VerificationDetailPage() {
                       </div>
                       <div className="flex justify-between">
                         <span className="text-gray-500">Session ID</span>
-                        <span className="text-gray-900 font-mono text-xs">{id?.slice(0, 8)}...</span>
+                        <span className="text-gray-900 font-mono text-xs">
+                          {session?.id || evidence?.session_id
+                            ? `${(session?.id || evidence?.session_id).slice(0, 8)}...`
+                            : '-'}
+                        </span>
                       </div>
                     </div>
 
@@ -348,7 +430,7 @@ export default function VerificationDetailPage() {
                       <div className="text-center py-8">
                         <p className="text-gray-500 mb-4">AI analysis unavailable</p>
                         <button 
-                          onClick={() => loadAiAnalysis(evidence?.image_url)}
+                          onClick={() => loadAiAnalysis({ evidenceData: evidence, sessionData: session, earningData: earning })}
                           className="px-4 py-2 bg-gray-900 text-white text-sm rounded-lg hover:bg-gray-800"
                         >
                           Retry
@@ -425,6 +507,12 @@ export default function VerificationDetailPage() {
                         <p className="text-xs text-gray-400 italic">
                           AI analysis is advisory only. Final verification decision rests with the reviewer.
                         </p>
+
+                        {aiAnalysis.cached && (
+                          <p className="text-xs text-gray-400">
+                            Showing cached agent result{aiAnalysis.evaluated_at ? ` from ${new Date(aiAnalysis.evaluated_at).toLocaleString('en-PK')}` : ''}.
+                          </p>
+                        )}
                       </>
                     ) : null}
                   </div>

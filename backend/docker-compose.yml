@@ -91,8 +91,12 @@
       context: ./shared-agent-service
       dockerfile: Dockerfile
     container_name: shared-agent-service
+    env_file:
+      - ../.env
     environment:
       - DATABASE_URL=mongodb://shared-agent-mongo:27017/shared_agent_service?replicaSet=rs0
+      - EARNINGS_SERVICE_INTERNAL_URL=http://earnings-service:4002
+      - GROQ_VISION_MODEL=meta-llama/llama-4-scout-17b-16e-instruct
     ports:
       - '4005:4005'
     depends_on:
@@ -118,8 +122,12 @@
       context: ./anomaly-service
       dockerfile: Dockerfile
     container_name: anomaly-service
+    env_file:
+      - ../.env
     environment:
       - DATABASE_URL=mongodb://anomaly-mongo:27017/anomaly_service?replicaSet=rs0
+      - EARNINGS_SERVICE_INTERNAL_URL=http://earnings-service:4002
+      - AUTH_SERVICE_INTERNAL_URL=http://auth-service:4001
     command: uvicorn app.main:app --host 0.0.0.0 --port 8002
     ports:
       - '8002:8002'
