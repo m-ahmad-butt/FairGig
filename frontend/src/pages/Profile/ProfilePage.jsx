@@ -443,10 +443,6 @@ export default function ProfilePage() {
                   </div>
                 )}
 
-                <div className="mt-6 bg-gray-50 border border-gray-200 rounded-md p-4">
-                  <h4 className="text-sm font-medium text-gray-900 mb-2">User ID</h4>
-                  <p className="text-xs text-gray-700 font-mono break-all">{user?.id}</p>
-                </div>
               </div>
             ) : (
               <form onSubmit={handleUpdateProfile} className="space-y-6">

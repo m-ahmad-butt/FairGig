@@ -5,20 +5,21 @@ import authService from '../../services/api/authService';
 export default function Navbar({ user }) {
   const navigate = useNavigate();
   const location = useLocation();
+  const normalizedRole = String(user?.role || '').toLowerCase();
 
   const dashboardPath =
-    user?.role === 'admin'
+    normalizedRole === 'admin'
       ? '/admin/dashboard'
-      : user?.role === 'worker'
+      : normalizedRole === 'worker'
         ? '/worker/dashboard'
-        : user?.role === 'verifier'
+        : normalizedRole === 'verifier'
           ? '/verifier/dashboard'
           : '/analyst/dashboard';
 
   const profilePath =
-    user?.role === 'worker'
+    normalizedRole === 'worker'
       ? '/worker/profile'
-      : user?.role === 'verifier'
+      : normalizedRole === 'verifier'
         ? '/verifier/profile'
         : '/analyst/profile';
 
@@ -27,7 +28,8 @@ export default function Navbar({ user }) {
     { to: profilePath, label: 'Profile' }
   ];
 
-  if (user?.role === 'worker') {
+  if (normalizedRole === 'worker') {
+    navItems.push({ to: '/worker/log-earnings', label: 'Earnings' });
     navItems.push({ to: '/worker/community', label: 'Community' });
   }
 

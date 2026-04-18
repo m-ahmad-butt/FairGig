@@ -62,20 +62,23 @@ export default function VerifyOtpPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8">
-        <div>
-          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-            Verify your email
-          </h2>
-          <p className="mt-2 text-center text-sm text-gray-600">
+    <div className="min-h-screen flex items-center justify-center bg-white px-4 py-12">
+      <div className="max-w-md w-full">
+        <div className="text-center mb-8">
+          <div className="w-16 h-16 bg-black rounded-xl flex items-center justify-center mx-auto mb-4">
+            <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 11c0 1.657-1.343 3-3 3S6 12.657 6 11s1.343-3 3-3 3 1.343 3 3zm6 0v2a9 9 0 11-18 0v-2m18 0V9a6 6 0 00-12 0v2m12 0H6" />
+            </svg>
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900">Verify your email</h2>
+          <p className="mt-2 text-gray-600">
             We sent a 6-digit code to <strong>{email}</strong>
           </p>
         </div>
         
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
+        <form className="space-y-5" onSubmit={handleSubmit}>
           <div>
-            <label htmlFor="otp" className="block text-sm font-medium text-gray-700">
+            <label htmlFor="otp" className="block text-sm font-medium text-gray-700 mb-1">
               Enter OTP
             </label>
             <input
@@ -86,7 +89,7 @@ export default function VerifyOtpPage() {
               maxLength={6}
               value={otp}
               onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
-              className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-black focus:border-black text-center text-2xl tracking-widest sm:text-sm"
+              className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent transition-all text-center text-lg tracking-[0.35em] font-semibold text-gray-900"
               placeholder="000000"
             />
           </div>
@@ -95,7 +98,7 @@ export default function VerifyOtpPage() {
             <button
               type="submit"
               disabled={loading}
-              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-black hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-black disabled:opacity-50"
+              className="w-full py-3 px-4 bg-black text-white font-medium rounded-lg hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2 disabled:opacity-50 transition-colors"
             >
               {loading ? 'Verifying...' : 'Verify OTP'}
             </button>
@@ -106,13 +109,13 @@ export default function VerifyOtpPage() {
               type="button"
               onClick={handleResendOTP}
               disabled={resending}
-              className="font-medium text-black hover:text-gray-700 disabled:opacity-50"
+              className="text-black font-medium hover:underline disabled:opacity-50"
             >
               {resending ? 'Resending...' : 'Resend OTP'}
             </button>
             
             <div>
-              <Link to="/register" className="font-medium text-gray-600 hover:text-gray-500">
+              <Link to="/register" className="text-gray-600 hover:text-black transition-colors">
                 Back to registration
               </Link>
             </div>

@@ -1,22 +1,16 @@
-import { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import earningsService from '../../services/api/earningsService';
 import authService from '../../services/api/authService';
+import { Badge } from '../../components/ui/badge';
+import { Button } from '../../components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
+import { Input } from '../../components/ui/input';
+import { getPlatformLabel } from '../../utils/workerProfileOptions';
 
-const PLATFORMS = {
-  'Ride-hailing': ['Bykea', 'Careem', 'inDrive', 'Airlift'],
-  'Food delivery': ['Foodpanda', 'Cheetay'],
-  'Freelance': ['Upwork', 'Fiverr', 'Freelancer.com', 'PeoplePerHour'],
-  'Domestic/other': ['TaskRobin', 'Rozgar']
-};
-
-const PLATFORM_OPTIONS = Object.entries(PLATFORMS).flatMap(([category, apps]) => 
-  apps.map(app => ({ category, name: app }))
-);
+const ERROR_FIELD_CLASS = 'border-red-300 focus-visible:ring-red-600';
 
 export default function SingleSessionEntry({ onComplete }) {
-  const navigate = useNavigate();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [sessionId, setSessionId] = useState(null);
@@ -25,7 +19,6 @@ export default function SingleSessionEntry({ onComplete }) {
 
   const [formData, setFormData] = useState({
     platform: '',
-    otherPlatform: '',
     sessionDate: '',
     startTime: '',
     endTime: '',
@@ -41,6 +34,24 @@ export default function SingleSessionEntry({ onComplete }) {
 
   const user = authService.getUser();
   const workerId = user?.id || user?._id;
+  const selectedPlatformName = user?.platform
+    ? getPlatformLabel(user?.category, user.platform).trim()
+    : '';
+
+  useEffect(() => {
+    if (!selectedPlatformName) {
+      return;
+    }
+
+    setFormData((prev) =>
+      prev.platform === selectedPlatformName
+        ? prev
+        : {
+            ...prev,
+            platform: selectedPlatformName
+          }
+    );
+  }, [selectedPlatformName]);
 
   useEffect(() => {
     const gross = parseFloat(formData.grossEarned) || 0;
@@ -51,7 +62,8 @@ export default function SingleSessionEntry({ onComplete }) {
 
   const validateCard1 = () => {
     const errs = {};
-    if (!formData.platform && !formData.otherPlatform) errs.platform = 'Select a platform';
+    if (!selectedPlatformName) errs.platform = 'Your profile platform is missing. Please update profile first.';
+    if (!formData.platform) errs.platform = 'Select a platform';
     if (!formData.sessionDate) errs.sessionDate = 'Select a date';
     if (!formData.startTime) errs.startTime = 'Select start time';
     if (!formData.endTime) errs.endTime = 'Select end time';
@@ -78,10 +90,15 @@ export default function SingleSessionEntry({ onComplete }) {
 
   const handleSubmitCard1 = async () => {
     if (!validateCard1()) return;
+
+    if (!workerId) {
+      toast.error('Unable to identify worker. Please login again.');
+      return;
+    }
     
     setLoading(true);
     try {
-      const platform = formData.otherPlatform || formData.platform;
+      const platform = formData.platform;
       const sessionDate = new Date(formData.sessionDate);
       const [startH, startM] = formData.startTime.split(':').map(Number);
       const [endH, endM] = formData.endTime.split(':').map(Number);
@@ -107,7 +124,7 @@ export default function SingleSessionEntry({ onComplete }) {
         trips_completed: parseInt(formData.tripsCompleted)
       });
 
-      const earningResult = await earningsService.createEarning({
+      await earningsService.createEarning({
         session_id: sessionResult.id,
         gross_earned: grossEarned,
         platform_deductions: platformDeductions,
@@ -167,6 +184,11 @@ export default function SingleSessionEntry({ onComplete }) {
   };
 
   const handleSubmitCard2 = async () => {
+    if (!workerId) {
+      toast.error('Unable to identify worker. Please login again.');
+      return;
+    }
+
     if (!evidenceFile) {
       await earningsService.createEvidence({
         worker_id: workerId,
@@ -208,208 +230,202 @@ export default function SingleSessionEntry({ onComplete }) {
     }
   };
 
-  const resetForm = () => {
-    setStep(1);
-    setSessionId(null);
-    setFormData({
-      platform: '',
-      otherPlatform: '',
-      sessionDate: '',
-      startTime: '',
-      endTime: '',
-      tripsCompleted: '',
-      grossEarned: '',
-      platformDeductions: '0',
-      netReceived: ''
-    });
-    setEvidenceFile(null);
-    setEvidencePreview(null);
-    setErrors({});
-  };
-
   const today = new Date().toISOString().split('T')[0];
 
   return (
     <div className="space-y-6">
       {step === 1 && (
-        <div className="bg-[#1e1e1e] rounded-2xl p-6 space-y-6">
-          <h3 className="text-lg font-bold text-white">Work Session & Earnings</h3>
-          
-          <div>
-            <label className="block text-sm text-gray-400 mb-2">Platform</label>
-            <select
-              value={formData.platform}
-              onChange={(e) => setFormData({ ...formData, platform: e.target.value, otherPlatform: '' })}
-              className={`w-full bg-[#111] border ${errors.platform ? 'border-red-500' : 'border-gray-700'} rounded-lg px-4 py-3 text-white focus:outline-none focus:border-gray-500`}
-            >
-              <option value="">Select platform</option>
-              {PLATFORM_OPTIONS.map(p => (
-                <option key={p.name} value={p.name}>{p.name}</option>
-              ))}
-              <option value="Other">Other</option>
-            </select>
-            {errors.platform && <p className="text-red-400 text-sm mt-1">{errors.platform}</p>}
-          </div>
-
-          {formData.platform === 'Other' && (
-            <div>
-              <label className="block text-sm text-gray-400 mb-2">Other Platform Name</label>
-              <input
+        <Card>
+          <CardHeader>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <CardTitle>Work Session & Earnings</CardTitle>
+                <CardDescription>Add one session with platform, timing, and earning details.</CardDescription>
+              </div>
+              <Badge variant="secondary">Step 1 of 2</Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-zinc-700">Platform</label>
+              <Input
                 type="text"
-                value={formData.otherPlatform}
-                onChange={(e) => setFormData({ ...formData, otherPlatform: e.target.value })}
-                className="w-full bg-[#111] border border-gray-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-gray-500"
-                placeholder="Enter platform name"
+                value={formData.platform || 'Not set'}
+                readOnly
+                className={`bg-zinc-100 text-zinc-700 ${errors.platform ? ERROR_FIELD_CLASS : ''}`}
               />
+              {errors.platform && <p className="text-xs text-red-600">{errors.platform}</p>}
             </div>
-          )}
 
-          <div>
-            <label className="block text-sm text-gray-400 mb-2">Session Date</label>
-            <input
-              type="date"
-              max={today}
-              value={formData.sessionDate}
-              onChange={(e) => setFormData({ ...formData, sessionDate: e.target.value })}
-              className={`w-full bg-[#111] border ${errors.sessionDate ? 'border-red-500' : 'border-gray-700'} rounded-lg px-4 py-3 text-white focus:outline-none focus:border-gray-500`}
-            />
-            {errors.sessionDate && <p className="text-red-400 text-sm mt-1">{errors.sessionDate}</p>}
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm text-gray-400 mb-2">Start Time</label>
-              <input
-                type="time"
-                value={formData.startTime}
-                onChange={(e) => setFormData({ ...formData, startTime: e.target.value })}
-                className={`w-full bg-[#111] border ${errors.startTime ? 'border-red-500' : 'border-gray-700'} rounded-lg px-4 py-3 text-white focus:outline-none focus:border-gray-500`}
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-zinc-700">Session Date</label>
+              <Input
+                type="date"
+                max={today}
+                value={formData.sessionDate}
+                onChange={(e) => setFormData({ ...formData, sessionDate: e.target.value })}
+                className={errors.sessionDate ? ERROR_FIELD_CLASS : ''}
               />
-              {errors.startTime && <p className="text-red-400 text-sm mt-1">{errors.startTime}</p>}
+              {errors.sessionDate && <p className="text-xs text-red-600">{errors.sessionDate}</p>}
             </div>
-            <div>
-              <label className="block text-sm text-gray-400 mb-2">End Time</label>
-              <input
-                type="time"
-                value={formData.endTime}
-                onChange={(e) => setFormData({ ...formData, endTime: e.target.value })}
-                className={`w-full bg-[#111] border ${errors.endTime ? 'border-red-500' : 'border-gray-700'} rounded-lg px-4 py-3 text-white focus:outline-none focus:border-gray-500`}
-              />
-              {errors.endTime && <p className="text-red-400 text-sm mt-1">{errors.endTime}</p>}
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-zinc-700">Start Time</label>
+                <Input
+                  type="time"
+                  value={formData.startTime}
+                  onChange={(e) => setFormData({ ...formData, startTime: e.target.value })}
+                  className={errors.startTime ? ERROR_FIELD_CLASS : ''}
+                />
+                {errors.startTime && <p className="text-xs text-red-600">{errors.startTime}</p>}
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-zinc-700">End Time</label>
+                <Input
+                  type="time"
+                  value={formData.endTime}
+                  onChange={(e) => setFormData({ ...formData, endTime: e.target.value })}
+                  className={errors.endTime ? ERROR_FIELD_CLASS : ''}
+                />
+                {errors.endTime && <p className="text-xs text-red-600">{errors.endTime}</p>}
+              </div>
             </div>
-          </div>
 
-          <div>
-            <label className="block text-sm text-gray-400 mb-2">Hours Worked</label>
-            <input
-              type="text"
-              value={calculateHours()}
-              readOnly
-              className="w-full bg-[#111] border border-gray-700 rounded-lg px-4 py-3 text-gray-500"
-            />
-          </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-zinc-700">Hours Worked</label>
+              <Input type="text" value={calculateHours()} readOnly className="bg-zinc-100 text-zinc-600" />
+            </div>
 
-          <div>
-            <label className="block text-sm text-gray-400 mb-2">Trips Completed</label>
-            <input
-              type="number"
-              min="0"
-              value={formData.tripsCompleted}
-              onChange={(e) => setFormData({ ...formData, tripsCompleted: e.target.value })}
-              className={`w-full bg-[#111] border ${errors.tripsCompleted ? 'border-red-500' : 'border-gray-700'} rounded-lg px-4 py-3 text-white focus:outline-none focus:border-gray-500`}
-              placeholder="0"
-            />
-            {errors.tripsCompleted && <p className="text-red-400 text-sm mt-1">{errors.tripsCompleted}</p>}
-          </div>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-zinc-700">Trips Completed</label>
+                <Input
+                  type="number"
+                  min="0"
+                  value={formData.tripsCompleted}
+                  onChange={(e) => setFormData({ ...formData, tripsCompleted: e.target.value })}
+                  className={errors.tripsCompleted ? ERROR_FIELD_CLASS : ''}
+                  placeholder="0"
+                />
+                {errors.tripsCompleted && <p className="text-xs text-red-600">{errors.tripsCompleted}</p>}
+              </div>
 
-          <div>
-            <label className="block text-sm text-gray-400 mb-2">Gross Earned (PKR)</label>
-            <input
-              type="number"
-              min="0"
-              value={formData.grossEarned}
-              onChange={(e) => setFormData({ ...formData, grossEarned: e.target.value })}
-              className={`w-full bg-[#111] border ${errors.grossEarned ? 'border-red-500' : 'border-gray-700'} rounded-lg px-4 py-3 text-white focus:outline-none focus:border-gray-500`}
-              placeholder="0"
-            />
-            {errors.grossEarned && <p className="text-red-400 text-sm mt-1">{errors.grossEarned}</p>}
-          </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-zinc-700">Gross Earned (PKR)</label>
+                <Input
+                  type="number"
+                  min="0"
+                  value={formData.grossEarned}
+                  onChange={(e) => setFormData({ ...formData, grossEarned: e.target.value })}
+                  className={errors.grossEarned ? ERROR_FIELD_CLASS : ''}
+                  placeholder="0"
+                />
+                {errors.grossEarned && <p className="text-xs text-red-600">{errors.grossEarned}</p>}
+              </div>
 
-          <div>
-            <label className="block text-sm text-gray-400 mb-2">Platform Deductions (PKR)</label>
-            <input
-              type="number"
-              min="0"
-              value={formData.platformDeductions}
-              onChange={(e) => setFormData({ ...formData, platformDeductions: e.target.value })}
-              className={`w-full bg-[#111] border ${errors.platformDeductions ? 'border-red-500' : 'border-gray-700'} rounded-lg px-4 py-3 text-white focus:outline-none focus:border-gray-500`}
-              placeholder="0"
-            />
-            {errors.platformDeductions && <p className="text-red-400 text-sm mt-1">{errors.platformDeductions}</p>}
-          </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-zinc-700">Deductions (PKR)</label>
+                <Input
+                  type="number"
+                  min="0"
+                  value={formData.platformDeductions}
+                  onChange={(e) => setFormData({ ...formData, platformDeductions: e.target.value })}
+                  className={errors.platformDeductions ? ERROR_FIELD_CLASS : ''}
+                  placeholder="0"
+                />
+                {errors.platformDeductions && <p className="text-xs text-red-600">{errors.platformDeductions}</p>}
+              </div>
+            </div>
 
-          <div>
-            <label className="block text-sm text-gray-400 mb-2">Net Received (PKR)</label>
-            <input
-              type="text"
-              value={formData.netReceived}
-              readOnly
-              className="w-full bg-amber-900/20 border border-amber-500/50 rounded-lg px-4 py-3 text-amber-400 font-medium"
-            />
-          </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-zinc-700">Net Received (PKR)</label>
+              <Input type="text" value={formData.netReceived} readOnly className="border-emerald-200 bg-emerald-50 text-emerald-700 font-medium" />
+            </div>
 
-          <button
-            onClick={handleSubmitCard1}
-            disabled={loading}
-            className="w-full bg-white text-black font-bold py-4 rounded-xl hover:bg-gray-200 disabled:opacity-50"
-          >
-            {loading ? 'Creating...' : 'Continue'}
-          </button>
-        </div>
+            <Button onClick={handleSubmitCard1} disabled={loading} className="h-11 w-full">
+              {loading ? 'Creating Session...' : 'Continue to Evidence'}
+            </Button>
+          </CardContent>
+        </Card>
       )}
 
       {step === 2 && (
-        <div className="bg-[#1e1e1e] rounded-2xl p-6 space-y-6">
-          <h3 className="text-lg font-bold text-white">Evidence Upload</h3>
-          
-          <div
-            onClick={() => fileInputRef.current?.click()}
-            className="border-2 border-dashed border-gray-700 rounded-xl p-8 text-center cursor-pointer hover:border-gray-500 transition-colors"
-          >
-            {evidencePreview ? (
-              <img src={evidencePreview} alt="Preview" className="max-h-48 mx-auto rounded-lg" />
-            ) : (
-              <div className="text-gray-400">
-                <p className="mb-2">Click or drag to upload image</p>
-                <p className="text-sm">JPG, PNG, WebP (max 10MB)</p>
+        <Card>
+          <CardHeader>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <CardTitle>Evidence Upload</CardTitle>
+                <CardDescription>
+                  Attach an optional screenshot for this session.
+                </CardDescription>
+              </div>
+              <Badge variant="secondary">Step 2 of 2</Badge>
+            </div>
+          </CardHeader>
+
+          <CardContent className="space-y-4">
+            <div
+              onClick={() => fileInputRef.current?.click()}
+              className="cursor-pointer rounded-xl border-2 border-dashed border-zinc-300 bg-zinc-50 p-8 text-center transition-colors hover:border-zinc-400"
+            >
+              {evidencePreview ? (
+                <img src={evidencePreview} alt="Preview" className="mx-auto max-h-60 rounded-md border border-zinc-200 object-contain" />
+              ) : (
+                <div className="text-zinc-600">
+                  <p className="font-medium">Click to upload image</p>
+                  <p className="mt-1 text-sm">JPG, PNG, WebP up to 10MB</p>
+                </div>
+              )}
+            </div>
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              onChange={handleFileSelect}
+              className="hidden"
+            />
+
+            {evidenceFile && (
+              <div className="flex items-center justify-between rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-700">
+                <span className="truncate">{evidenceFile.name}</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEvidenceFile(null);
+                    setEvidencePreview(null);
+                    if (fileInputRef.current) {
+                      fileInputRef.current.value = '';
+                    }
+                  }}
+                  className="ml-3 font-medium text-zinc-900 hover:underline"
+                >
+                  Remove
+                </button>
               </div>
             )}
-          </div>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/jpeg,image/png,image/webp"
-            onChange={handleFileSelect}
-            className="hidden"
-          />
 
-          {uploadProgress > 0 && (
-            <div className="space-y-2">
-              <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
-                <div className="h-full bg-white transition-all" style={{ width: `${uploadProgress}%` }} />
+            {uploadProgress > 0 && (
+              <div className="space-y-2">
+                <div className="h-2 overflow-hidden rounded-full bg-zinc-200">
+                  <div className="h-full bg-zinc-900 transition-all" style={{ width: `${uploadProgress}%` }} />
+                </div>
+                <p className="text-center text-xs text-zinc-500">{uploadProgress}% uploaded</p>
               </div>
-              <p className="text-center text-sm text-gray-400">{uploadProgress}% uploaded</p>
-            </div>
-          )}
+            )}
 
-          <button
-            onClick={handleSubmitCard2}
-            disabled={loading}
-            className="w-full bg-white text-black font-bold py-4 rounded-xl hover:bg-gray-200 disabled:opacity-50"
-          >
-            {loading ? 'Uploading...' : 'Complete'}
-          </button>
-        </div>
+            <div className="flex gap-3">
+              <Button variant="outline" onClick={() => setStep(1)} disabled={loading} className="h-11 flex-1">
+                Back
+              </Button>
+              <Button onClick={handleSubmitCard2} disabled={loading} className="h-11 flex-1">
+                {loading ? 'Uploading...' : 'Complete Session'}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       )}
     </div>
   );

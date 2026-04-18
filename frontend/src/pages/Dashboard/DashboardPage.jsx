@@ -11,6 +11,7 @@ export default function DashboardPage() {
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+<<<<<<< Updated upstream
   const [earnings, setEarnings] = useState([]);
   const [stats, setStats] = useState({
     totalEarnings: 0,
@@ -19,6 +20,10 @@ export default function DashboardPage() {
     thisWeek: 0,
     anomalyCount: 0
   });
+=======
+  const normalizedRole = String(user?.role || '').toLowerCase();
+  const isWorker = normalizedRole === 'worker';
+>>>>>>> Stashed changes
 
   useEffect(() => {
     loadData();
@@ -87,6 +92,7 @@ export default function DashboardPage() {
           <p className="text-gray-400 mt-1">Here's your earnings overview</p>
         </div>
 
+<<<<<<< Updated upstream
         {isWorker && (
           <>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
@@ -112,6 +118,31 @@ export default function DashboardPage() {
                 <p className="text-gray-400 text-sm">Pending</p>
                 <p className="text-2xl md:text-3xl font-bold text-amber-400 mt-1">
                   {stats.unverifiedCount}
+=======
+              {isWorker && (
+                <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => navigate('/worker/log-earnings')}
+                    className="w-full py-3 px-4 bg-black text-white font-medium rounded-lg hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2 transition-colors"
+                  >
+                    Open Earnings Page
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => navigate('/worker/community')}
+                    className="w-full py-3 px-4 bg-white text-gray-800 font-medium border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2 transition-colors"
+                  >
+                    Open Community
+                  </button>
+                </div>
+              )}
+
+              <div className="mt-6 p-4 bg-blue-50 rounded-md">
+                <p className="text-sm text-blue-800">
+                  Your dashboard is ready! More features coming soon.
+>>>>>>> Stashed changes
                 </p>
               </div>
             </div>

@@ -17,19 +17,21 @@ import {
 } from '../../utils/workerProfileOptions';
 
 function getDashboardPath(role) {
-  if (role === 'worker') {
+  const normalizedRole = String(role || '').toLowerCase();
+
+  if (normalizedRole === 'worker') {
     return '/worker/dashboard';
   }
 
-  if (role === 'verifier') {
+  if (normalizedRole === 'verifier') {
     return '/verifier/dashboard';
   }
 
-  if (role === 'analyst' || role === 'advocate') {
+  if (normalizedRole === 'analyst' || normalizedRole === 'advocate') {
     return '/analyst/dashboard';
   }
 
-  if (role === 'admin') {
+  if (normalizedRole === 'admin') {
     return '/admin/dashboard';
   }
 

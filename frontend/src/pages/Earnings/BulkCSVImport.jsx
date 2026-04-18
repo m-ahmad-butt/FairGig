@@ -1,20 +1,26 @@
-import { useState, useRef, useCallback } from 'react';
+import { useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import Papa from 'papaparse';
 import earningsService from '../../services/api/earningsService';
 import authService from '../../services/api/authService';
+import { Badge } from '../../components/ui/badge';
+import { Button } from '../../components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
+import { getPlatformLabel } from '../../utils/workerProfileOptions';
 
 const PLATFORM_NAMES = ['Bykea', 'Careem', 'inDrive', 'Airlift', 'Foodpanda', 'Cheetay', 'Upwork', 'Fiverr', 'Freelancer.com', 'PeoplePerHour', 'TaskRobin', 'Rozgar'];
 
 const CSV_TEMPLATE = 'platform,session_date,start_time,end_time,trips_completed,gross_earned,platform_deductions,net_received';
 
-function validateRow(row, index, existingDates) {
+const TABLE_FIELD_CLASS = 'h-8 rounded-md border border-zinc-200 bg-white px-2 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-900';
+
+function validateRow(row, index, existingDates, allowedPlatforms = PLATFORM_NAMES) {
   const errors = [];
   const warnings = [];
 
   if (!row.platform || row.platform.trim() === '') {
     errors.push('Platform is required');
-  } else if (!PLATFORM_NAMES.map(p => p.toLowerCase()).includes(row.platform.toLowerCase().trim())) {
+  } else if (!allowedPlatforms.map((platformName) => platformName.toLowerCase()).includes(row.platform.toLowerCase().trim())) {
     errors.push('Invalid platform');
   }
 
@@ -87,6 +93,33 @@ function validateRow(row, index, existingDates) {
   };
 }
 
+function getStatusMeta(row) {
+  if (row._status === 'error') {
+    return {
+      label: 'Error',
+      variant: 'destructive',
+      className: '',
+      title: row._errors.join(', ')
+    };
+  }
+
+  if (row._status === 'warning') {
+    return {
+      label: 'Warning',
+      variant: 'secondary',
+      className: 'bg-amber-100 text-amber-700 hover:bg-amber-200',
+      title: row._warnings.join(', ')
+    };
+  }
+
+  return {
+    label: 'Valid',
+    variant: 'success',
+    className: '',
+    title: ''
+  };
+}
+
 export default function BulkCSVImport({ onComplete }) {
   const [phase, setPhase] = useState(1);
   const [rows, setRows] = useState([]);
@@ -97,6 +130,10 @@ export default function BulkCSVImport({ onComplete }) {
   const fileInputRef = useRef(null);
   const user = authService.getUser();
   const workerId = user?.id || user?._id;
+  const selectedPlatformName = user?.platform
+    ? getPlatformLabel(user?.category, user.platform).trim()
+    : '';
+  const allowedPlatforms = selectedPlatformName ? [selectedPlatformName] : PLATFORM_NAMES;
 
   const downloadTemplate = () => {
     const blob = new Blob([CSV_TEMPLATE], { type: 'text/csv' });
@@ -118,13 +155,18 @@ export default function BulkCSVImport({ onComplete }) {
       complete: (results) => {
         const dates = new Set();
         const validated = results.data.map((row, index) => {
-          const rowWithDate = validateRow(row, index, dates);
+          const normalizedRow = selectedPlatformName
+            ? { ...row, platform: selectedPlatformName }
+            : row;
+          const rowWithDate = validateRow(normalizedRow, index, dates, allowedPlatforms);
           if (rowWithDate.session_date && !rowWithDate._errors.some(e => e.includes('Duplicate'))) {
             dates.add(rowWithDate.session_date.trim());
           }
           return rowWithDate;
         });
         setRows(validated);
+        setFiles({});
+        setResults(null);
         setPhase(1);
       },
       error: () => {
@@ -136,7 +178,19 @@ export default function BulkCSVImport({ onComplete }) {
   const updateRow = (index, field, value) => {
     setRows(prev => prev.map((row, i) => {
       if (i === index) {
-        return validateRow({ ...row, [field]: value }, index, new Set(prev.map(r => r.session_date)));
+        const dateSet = new Set(
+          prev
+            .filter((_, rowIndex) => rowIndex !== index)
+            .map((r) => String(r.session_date || '').trim())
+            .filter(Boolean)
+        );
+
+        const nextRow = { ...row, [field]: value };
+        if (selectedPlatformName) {
+          nextRow.platform = selectedPlatformName;
+        }
+
+        return validateRow(nextRow, index, dateSet, allowedPlatforms);
       }
       return row;
     }));
@@ -176,6 +230,11 @@ export default function BulkCSVImport({ onComplete }) {
   };
 
   const handleSubmit = async () => {
+    if (!workerId) {
+      toast.error('Unable to identify worker. Please login again.');
+      return;
+    }
+
     const validRows = rows.filter(r => r._status !== 'error');
     setUploading(true);
     const resultsArr = [];
@@ -283,235 +342,300 @@ export default function BulkCSVImport({ onComplete }) {
   const validCount = rows.filter(r => r._status === 'valid').length;
   const warningCount = rows.filter(r => r._status === 'warning').length;
   const errorCount = rows.filter(r => r._status === 'error').length;
+  const reviewRows = rows.filter((row) => row._status !== 'error');
 
   return (
     <div className="space-y-6">
       {phase === 1 && (
         <>
-          <div className="flex justify-between items-center">
-            <h3 className="text-lg font-bold text-white">Upload CSV</h3>
-            <button onClick={downloadTemplate} className="text-sm text-gray-400 hover:text-white">
-              Download template
-            </button>
-          </div>
+          <Card>
+            <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
+              <div>
+                <CardTitle>Upload CSV</CardTitle>
+                <CardDescription>
+                  Import multiple sessions using the provided template format.
+                </CardDescription>
+              </div>
+              <Button variant="outline" onClick={downloadTemplate} className="shrink-0">
+                Download Template
+              </Button>
+            </CardHeader>
 
-          <div
-            onClick={() => fileInputRef.current?.click()}
-            className="border-2 border-dashed border-gray-700 rounded-xl p-12 text-center cursor-pointer hover:border-gray-500 transition-colors"
-          >
-            <div className="text-gray-400">
-              <p className="mb-2">Click or drag CSV file here</p>
-            </div>
-          </div>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".csv"
-            onChange={handleFileUpload}
-            className="hidden"
-          />
+            <CardContent>
+              <div
+                onClick={() => fileInputRef.current?.click()}
+                className="cursor-pointer rounded-xl border-2 border-dashed border-zinc-300 bg-zinc-50 p-12 text-center transition-colors hover:border-zinc-400"
+              >
+                <p className="font-medium text-zinc-700">Click to select CSV file</p>
+                <p className="mt-1 text-sm text-zinc-500">CSV with headers and one row per session</p>
+              </div>
+
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".csv"
+                onChange={handleFileUpload}
+                className="hidden"
+              />
+            </CardContent>
+          </Card>
 
           {rows.length > 0 && (
-            <div className="bg-[#1e1e1e] rounded-2xl p-6">
-              <div className="flex justify-between items-center mb-4">
-                <div className="text-sm text-gray-400">
-                  {validCount} valid, {warningCount} warnings, {errorCount} errors
+            <Card>
+              <CardHeader className="pb-3">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    {selectedPlatformName && <Badge variant="secondary">Platform: {selectedPlatformName}</Badge>}
+                    <Badge variant="success">{validCount} valid</Badge>
+                    <Badge variant="secondary" className="bg-amber-100 text-amber-700 hover:bg-amber-200">
+                      {warningCount} warnings
+                    </Badge>
+                    <Badge variant="destructive">{errorCount} errors</Badge>
+                  </div>
+                  {validCount + warningCount > 0 && (
+                    <Button onClick={() => setPhase(2)}>
+                      Continue ({validCount + warningCount} rows)
+                    </Button>
+                  )}
                 </div>
-                {validCount + warningCount > 0 && (
-                  <button
-                    onClick={() => setPhase(2)}
-                    className="bg-white text-black px-4 py-2 rounded-lg font-medium"
-                  >
-                    Continue ({validCount + warningCount} rows)
-                  </button>
-                )}
-              </div>
+              </CardHeader>
 
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-gray-400 border-b border-gray-700">
-                      <th className="text-left py-2 px-2">Status</th>
-                      <th className="text-left py-2 px-2">Platform</th>
-                      <th className="text-left py-2 px-2">Date</th>
-                      <th className="text-left py-2 px-2">Start</th>
-                      <th className="text-left py-2 px-2">End</th>
-                      <th className="text-left py-2 px-2">Trips</th>
-                      <th className="text-left py-2 px-2">Gross</th>
-                      <th className="text-left py-2 px-2">Deductions</th>
-                      <th className="text-left py-2 px-2">Net</th>
-                      <th className="text-left py-2 px-2"></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {rows.map((row, idx) => (
-                      <tr key={idx} className="border-b border-gray-800">
-                        <td className="py-2 px-2">
-                          {row._status === 'valid' && <span className="text-green-400">✅</span>}
-                          {row._status === 'warning' && <span className="text-yellow-400" title={row._warnings.join(', ')}>⚠️</span>}
-                          {row._status === 'error' && <span className="text-red-400" title={row._errors.join(', ')}>❌</span>}
-                        </td>
-                        <td className="py-2 px-2">
-                          <select
-                            value={row.platform || ''}
-                            onChange={(e) => updateRow(idx, 'platform', e.target.value)}
-                            className="bg-[#111] text-white text-xs px-2 py-1 rounded border border-gray-700"
-                          >
-                            <option value="">Select</option>
-                            {PLATFORM_NAMES.map(p => <option key={p} value={p}>{p}</option>)}
-                          </select>
-                        </td>
-                        <td className="py-2 px-2">
-                          <input
-                            type="date"
-                            value={row.session_date || ''}
-                            onChange={(e) => updateRow(idx, 'session_date', e.target.value)}
-                            className="bg-[#111] text-white text-xs px-2 py-1 rounded border border-gray-700"
-                          />
-                        </td>
-                        <td className="py-2 px-2">
-                          <input
-                            type="time"
-                            value={row.start_time || ''}
-                            onChange={(e) => updateRow(idx, 'start_time', e.target.value)}
-                            className="bg-[#111] text-white text-xs px-2 py-1 rounded border border-gray-700"
-                          />
-                        </td>
-                        <td className="py-2 px-2">
-                          <input
-                            type="time"
-                            value={row.end_time || ''}
-                            onChange={(e) => updateRow(idx, 'end_time', e.target.value)}
-                            className="bg-[#111] text-white text-xs px-2 py-1 rounded border border-gray-700"
-                          />
-                        </td>
-                        <td className="py-2 px-2">
-                          <input
-                            type="number"
-                            value={row.trips_completed || ''}
-                            onChange={(e) => updateRow(idx, 'trips_completed', e.target.value)}
-                            className="bg-[#111] text-white text-xs px-2 py-1 rounded border border-gray-700 w-16"
-                          />
-                        </td>
-                        <td className="py-2 px-2">
-                          <input
-                            type="number"
-                            value={row.gross_earned || ''}
-                            onChange={(e) => updateRow(idx, 'gross_earned', e.target.value)}
-                            className="bg-[#111] text-white text-xs px-2 py-1 rounded border border-gray-700 w-20"
-                          />
-                        </td>
-                        <td className="py-2 px-2">
-                          <input
-                            type="number"
-                            value={row.platform_deductions || '0'}
-                            onChange={(e) => updateRow(idx, 'platform_deductions', e.target.value)}
-                            className="bg-[#111] text-white text-xs px-2 py-1 rounded border border-gray-700 w-20"
-                          />
-                        </td>
-                        <td className="py-2 px-2">
-                          <input
-                            type="number"
-                            value={row.net_received || ''}
-                            onChange={(e) => updateRow(idx, 'net_received', e.target.value)}
-                            className="bg-[#111] text-white text-xs px-2 py-1 rounded border border-gray-700 w-20"
-                          />
-                        </td>
-                        <td className="py-2 px-2">
-                          <button onClick={() => deleteRow(idx)} className="text-red-400 hover:text-red-300">×</button>
-                        </td>
+              <CardContent>
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[980px] text-sm">
+                    <thead>
+                      <tr className="border-b border-zinc-200 text-zinc-500">
+                        <th className="px-2 py-2 text-left font-medium">Status</th>
+                        <th className="px-2 py-2 text-left font-medium">Platform</th>
+                        <th className="px-2 py-2 text-left font-medium">Date</th>
+                        <th className="px-2 py-2 text-left font-medium">Start</th>
+                        <th className="px-2 py-2 text-left font-medium">End</th>
+                        <th className="px-2 py-2 text-left font-medium">Trips</th>
+                        <th className="px-2 py-2 text-left font-medium">Gross</th>
+                        <th className="px-2 py-2 text-left font-medium">Deduction</th>
+                        <th className="px-2 py-2 text-left font-medium">Net</th>
+                        <th className="px-2 py-2 text-left font-medium">Action</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+                    </thead>
+                    <tbody>
+                      {rows.map((row, idx) => {
+                        const status = getStatusMeta(row);
+
+                        return (
+                          <tr key={idx} className="border-b border-zinc-100 align-top">
+                            <td className="px-2 py-2">
+                              <Badge variant={status.variant} className={status.className} title={status.title}>
+                                {status.label}
+                              </Badge>
+                            </td>
+                            <td className="px-2 py-2">
+                              {selectedPlatformName ? (
+                                <div className="flex h-8 w-28 items-center rounded-md border border-zinc-200 bg-zinc-100 px-2 text-xs text-zinc-700">
+                                  {selectedPlatformName}
+                                </div>
+                              ) : (
+                                <select
+                                  value={row.platform || ''}
+                                  onChange={(e) => updateRow(idx, 'platform', e.target.value)}
+                                  className={`${TABLE_FIELD_CLASS} w-28`}
+                                >
+                                  <option value="">Select</option>
+                                  {allowedPlatforms.map((platformOption) => (
+                                    <option key={platformOption} value={platformOption}>
+                                      {platformOption}
+                                    </option>
+                                  ))}
+                                </select>
+                              )}
+                            </td>
+                            <td className="px-2 py-2">
+                              <input
+                                type="date"
+                                value={row.session_date || ''}
+                                onChange={(e) => updateRow(idx, 'session_date', e.target.value)}
+                                className={`${TABLE_FIELD_CLASS} w-32`}
+                              />
+                            </td>
+                            <td className="px-2 py-2">
+                              <input
+                                type="time"
+                                value={row.start_time || ''}
+                                onChange={(e) => updateRow(idx, 'start_time', e.target.value)}
+                                className={`${TABLE_FIELD_CLASS} w-24`}
+                              />
+                            </td>
+                            <td className="px-2 py-2">
+                              <input
+                                type="time"
+                                value={row.end_time || ''}
+                                onChange={(e) => updateRow(idx, 'end_time', e.target.value)}
+                                className={`${TABLE_FIELD_CLASS} w-24`}
+                              />
+                            </td>
+                            <td className="px-2 py-2">
+                              <input
+                                type="number"
+                                value={row.trips_completed || ''}
+                                onChange={(e) => updateRow(idx, 'trips_completed', e.target.value)}
+                                className={`${TABLE_FIELD_CLASS} w-16`}
+                              />
+                            </td>
+                            <td className="px-2 py-2">
+                              <input
+                                type="number"
+                                value={row.gross_earned || ''}
+                                onChange={(e) => updateRow(idx, 'gross_earned', e.target.value)}
+                                className={`${TABLE_FIELD_CLASS} w-24`}
+                              />
+                            </td>
+                            <td className="px-2 py-2">
+                              <input
+                                type="number"
+                                value={row.platform_deductions || '0'}
+                                onChange={(e) => updateRow(idx, 'platform_deductions', e.target.value)}
+                                className={`${TABLE_FIELD_CLASS} w-24`}
+                              />
+                            </td>
+                            <td className="px-2 py-2">
+                              <input
+                                type="number"
+                                value={row.net_received || ''}
+                                onChange={(e) => updateRow(idx, 'net_received', e.target.value)}
+                                className={`${TABLE_FIELD_CLASS} w-24`}
+                              />
+                            </td>
+                            <td className="px-2 py-2">
+                              <Button variant="ghost" size="sm" onClick={() => deleteRow(idx)} className="text-red-600 hover:bg-red-50 hover:text-red-700">
+                                Remove
+                              </Button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
           )}
         </>
       )}
 
       {phase === 2 && (
         <>
-          <div className="flex justify-between items-center">
-            <h3 className="text-lg font-bold text-white">Review & Submit</h3>
-            <button onClick={() => setPhase(1)} className="text-sm text-gray-400 hover:text-white">
-              Back to edit
-            </button>
-          </div>
-
-          <div className="bg-[#1e1e1e] rounded-2xl p-6">
-            <h4 className="text-white font-medium mb-4">Upload Evidence Images (Optional)</h4>
-            
-            {rows.filter(r => r._status !== 'error').map((row, idx) => (
-              <div key={idx} className="flex items-center justify-between py-3 border-b border-gray-800">
-                <div>
-                  <span className="text-white">{row.platform}</span>
-                  <span className="text-gray-400 ml-2">{row.session_date}</span>
-                </div>
-                <input
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp"
-                  onChange={(e) => handleFileSelect(idx, e)}
-                  className="text-sm text-gray-400"
-                />
+          <Card>
+            <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
+              <div>
+                <CardTitle>Review & Submit</CardTitle>
+                <CardDescription>
+                  Optional evidence can be attached per row before final submission.
+                </CardDescription>
               </div>
-            ))}
-          </div>
+              <Button variant="ghost" onClick={() => setPhase(1)}>
+                Back to Edit
+              </Button>
+            </CardHeader>
 
-          <button
-            onClick={handleSubmit}
-            disabled={uploading}
-            className="w-full bg-white text-black font-bold py-4 rounded-xl hover:bg-gray-200 disabled:opacity-50"
-          >
-            {uploading ? 'Uploading...' : `Submit ${rows.filter(r => r._status !== 'error').length} Sessions`}
-          </button>
+            <CardContent className="space-y-4">
+              {reviewRows.length === 0 ? (
+                <p className="text-sm text-zinc-500">No rows available for submission.</p>
+              ) : (
+                <div className="space-y-3">
+                  {reviewRows.map((row, idx) => (
+                    <div key={`${row._rowIndex}-${idx}`} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-zinc-200 px-3 py-3">
+                      <div>
+                        <p className="text-sm font-medium text-zinc-900">{row.platform}</p>
+                        <p className="text-xs text-zinc-500">{row.session_date}</p>
+                      </div>
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        onChange={(e) => handleFileSelect(idx, e)}
+                        className="block text-xs text-zinc-600 file:mr-3 file:cursor-pointer file:rounded-md file:border-0 file:bg-zinc-100 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-zinc-800 hover:file:bg-zinc-200"
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {uploading && Object.keys(progress).length > 0 && (
+                <div className="rounded-md border border-zinc-200 bg-zinc-50 p-3">
+                  <p className="mb-2 text-sm font-medium text-zinc-700">Uploading evidence files...</p>
+                  <div className="space-y-2">
+                    {Object.entries(progress).map(([name, value]) => (
+                      <div key={name}>
+                        <div className="mb-1 flex items-center justify-between text-xs text-zinc-500">
+                          <span className="truncate pr-2">{name}</span>
+                          <span>{value}%</span>
+                        </div>
+                        <div className="h-2 overflow-hidden rounded-full bg-zinc-200">
+                          <div className="h-full bg-zinc-900 transition-all" style={{ width: `${value}%` }} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Button onClick={handleSubmit} disabled={uploading || reviewRows.length === 0} className="h-11 w-full">
+            {uploading ? 'Submitting...' : `Submit ${reviewRows.length} Sessions`}
+          </Button>
         </>
       )}
 
       {phase === 3 && results && (
-        <div className="bg-[#1e1e1e] rounded-2xl p-6">
-          <h3 className="text-lg font-bold text-white mb-4">Results</h3>
-          
-          <div className="text-sm text-gray-400 mb-4">
-            {results.filter(r => r.status === 'created').length} created, {results.filter(r => r.status === 'failed').length} failed
-          </div>
+        <Card>
+          <CardHeader>
+            <CardTitle>Import Results</CardTitle>
+            <CardDescription>Review created and failed rows before finishing.</CardDescription>
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant="success">{results.filter((result) => result.status === 'created').length} created</Badge>
+              <Badge variant="destructive">{results.filter((result) => result.status === 'failed').length} failed</Badge>
+            </div>
+          </CardHeader>
 
-          <div className="overflow-x-auto max-h-64">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-gray-400 border-b border-gray-700">
-                  <th className="text-left py-2">Status</th>
-                  <th className="text-left py-2">Platform</th>
-                  <th className="text-left py-2">Date</th>
-                  <th className="text-left py-2">Notes</th>
-                </tr>
-              </thead>
-              <tbody>
-                {results.map((r, i) => (
-                  <tr key={i} className="border-b border-gray-800">
-                    <td className="py-2">
-                      {r.status === 'created' ? <span className="text-green-400">✅</span> : <span className="text-red-400">❌</span>}
-                    </td>
-                    <td className="py-2 text-white">{r.platform}</td>
-                    <td className="py-2 text-white">{r.date}</td>
-                    <td className="py-2 text-gray-400">
-                      {r.noEvidence ? 'No evidence' : r.error || 'OK'}
-                    </td>
+          <CardContent>
+            <div className="max-h-72 overflow-auto rounded-lg border border-zinc-200">
+              <table className="w-full text-sm">
+                <thead className="sticky top-0 bg-zinc-50 text-zinc-500">
+                  <tr className="border-b border-zinc-200">
+                    <th className="px-3 py-2 text-left font-medium">Status</th>
+                    <th className="px-3 py-2 text-left font-medium">Platform</th>
+                    <th className="px-3 py-2 text-left font-medium">Date</th>
+                    <th className="px-3 py-2 text-left font-medium">Notes</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {results.map((result, index) => (
+                    <tr key={index} className="border-b border-zinc-100">
+                      <td className="px-3 py-2">
+                        <Badge variant={result.status === 'created' ? 'success' : 'destructive'}>
+                          {result.status === 'created' ? 'Created' : 'Failed'}
+                        </Badge>
+                      </td>
+                      <td className="px-3 py-2 text-zinc-900">{result.platform}</td>
+                      <td className="px-3 py-2 text-zinc-900">{result.date}</td>
+                      <td className="px-3 py-2 text-zinc-600">
+                        {result.noEvidence ? 'No evidence attached' : result.error || 'OK'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
 
-          <div className="flex gap-4 mt-6">
-            <button onClick={downloadResults} className="flex-1 bg-white text-black font-bold py-3 rounded-xl">
-              Download Results
-            </button>
-            <button onClick={onComplete} className="flex-1 bg-gray-700 text-white font-bold py-3 rounded-xl">
-              Done
-            </button>
-          </div>
-        </div>
+            <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <Button onClick={downloadResults} variant="outline" className="h-11">
+                Download Results CSV
+              </Button>
+              <Button onClick={() => onComplete?.('bulk-import')} className="h-11">
+                Done
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       )}
     </div>
   );

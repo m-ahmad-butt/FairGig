@@ -103,17 +103,18 @@ function validateSignup(req, res, next) {
   }
 
   if (role === ROLES.WORKER) {
-    if (!category || !platform) {
-      return res.status(400).json({ error: 'category and platform are required for workers' });
-    }
+    const hasWorkerSelectionPayload =
+      isProvided(category) || isProvided(platform) || isProvided(vehicleType) || isProvided(freelancerType);
 
-    const workerSelectionError = validateWorkerSelectionFields(
-      { category, platform, vehicleType, freelancerType },
-      { requireCompleteSelection: true }
-    );
+    if (hasWorkerSelectionPayload) {
+      const workerSelectionError = validateWorkerSelectionFields(
+        { category, platform, vehicleType, freelancerType },
+        { requireCompleteSelection: false }
+      );
 
-    if (workerSelectionError) {
-      return res.status(400).json({ error: workerSelectionError });
+      if (workerSelectionError) {
+        return res.status(400).json({ error: workerSelectionError });
+      }
     }
   } else if (isProvided(category) || isProvided(platform) || isProvided(vehicleType) || isProvided(freelancerType)) {
     return res.status(400).json({ error: 'category, platform, vehicleType and freelancerType are only allowed for workers' });

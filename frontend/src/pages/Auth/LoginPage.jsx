@@ -12,6 +12,28 @@ export default function LoginPage() {
   });
   const [loading, setLoading] = useState(false);
 
+  const getDashboardPath = (role) => {
+    const normalizedRole = String(role || '').toLowerCase();
+
+    if (normalizedRole === 'admin') {
+      return '/admin/dashboard';
+    }
+
+    if (normalizedRole === 'worker') {
+      return '/worker/dashboard';
+    }
+
+    if (normalizedRole === 'verifier') {
+      return '/verifier/dashboard';
+    }
+
+    if (normalizedRole === 'analyst' || normalizedRole === 'advocate') {
+      return '/analyst/dashboard';
+    }
+
+    return '/profile';
+  };
+
   const handleChange = (e) => {
     setFormData({
       ...formData,
@@ -32,20 +54,14 @@ export default function LoginPage() {
       const user = result.user;
       const locationMissing = !user.city || !user.zone;
       const workerProfileMissing = !isWorkerProfileComplete(user);
-      const needsOnboarding = !user.emailVerified || locationMissing || workerProfileMissing;
+      // Login is only allowed for verified users; treat missing emailVerified as verified.
+      const emailNotVerified = user.emailVerified === false;
+      const needsOnboarding = emailNotVerified || locationMissing || workerProfileMissing;
       
       if (needsOnboarding) {
         navigate('/onboarding', { state: { email: formData.email, role: user.role } });
-      } else if (user.role === 'admin') {
-        navigate('/admin/dashboard');
-      } else if (result.user.role === 'worker') {
-        navigate('/worker/dashboard');
-      } else if (result.user.role === 'verifier') {
-        navigate('/verifier/dashboard');
-      } else if (result.user.role === 'analyst' || result.user.role === 'advocate') {
-        navigate('/analyst/dashboard');
       } else {
-        navigate('/profile');
+        navigate(getDashboardPath(user.role));
       }
     } catch (error) {
       toast.error(error.message);
@@ -80,7 +96,7 @@ export default function LoginPage() {
               value={formData.email}
               onChange={handleChange}
               className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent transition-all"
-              placeholder="your@email.com"
+              placeholder="m.ahmad.software.engineer@gmail.com"
             />
           </div>
 
