@@ -1,0 +1,64 @@
+const { PrismaClient } = require('@prisma/client');
+const prisma = new PrismaClient();
+
+class UserRepository {
+  async findByEmail(email) {
+    return prisma.user.findUnique({ where: { email } });
+  }
+
+  async findById(id) {
+    return prisma.user.findUnique({ where: { id } });
+  }
+
+  async create(userData) {
+    try {
+      return await prisma.user.create({ data: userData });
+    } catch (error) {
+      console.error('User creation error:', error);
+      throw error;
+    }
+  }
+
+  async update(id, data) {
+    return prisma.user.update({ where: { id }, data });
+  }
+
+  async updateByEmail(email, data) {
+    return prisma.user.update({ where: { email }, data });
+  }
+
+  async findPendingUsers() {
+    return prisma.user.findMany({
+      where: {
+        status: 'pending',
+        emailVerified: true,
+        role: { in: ['verifier', 'analyst'] }
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        createdAt: true
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+  }
+
+  async getUserProfile(id) {
+    return prisma.user.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        status: true,
+        emailVerified: true,
+        createdAt: true
+      }
+    });
+  }
+}
+
+module.exports = new UserRepository();

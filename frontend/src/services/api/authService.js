@@ -1,92 +1,211 @@
-const API_URL = import.meta.env.API_GATEWAY_URL || 'http://localhost:8080';
+const API_URL = import.meta.env.VITE_AUTH_SERVICE_URL || 'http://localhost:4001/api/auth';
 
-const fetchWithJson = async (endpoint, options = {}) => {
-  const url = `${API_URL}${endpoint}`;
-  const headers = {
-    'Content-Type': 'application/json',
-    ...(options.headers || {}),
-  };
+class AuthService {
+  async signup(data) {
+    const response = await fetch(`${API_URL}/signup`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
 
-  const response = await fetch(url, {
-    ...options,
-    headers,
-  });
+    const result = await response.json();
 
-  if (!response.ok) {
-    let errorMessage = `HTTP error! status: ${response.status}`;
-    try {
-      const errorData = await response.json();
-      errorMessage = errorData.message || errorMessage;
-    } catch {
-      // Ignored
+    if (!response.ok) {
+      throw new Error(result.error || 'Signup failed');
     }
-    throw new Error(errorMessage);
+
+    return result;
   }
 
-  return response.json();
-};
+  async verifyOTP(email, otp) {
+    const response = await fetch(`${API_URL}/verify-otp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, otp })
+    });
 
-const authService = {
-  register: async (data) => {
-    try {
-      return await fetchWithJson('/api/auth/register', {
-        method: 'POST',
-        body: JSON.stringify(data),
-      });
-    } catch (error) {
-      console.error('[AuthService] Register API error:', error.message);
-      throw error;
+    const result = await response.json();
+
+    if (!response.ok) {
+      throw new Error(result.error || 'OTP verification failed');
     }
-  },
 
-  login: async (data) => {
-    try {
-      return await fetchWithJson('/api/auth/login', {
-        method: 'POST',
-        body: JSON.stringify(data),
-      });
-    } catch (error) {
-      console.error('[AuthService] Login API error:', error.message);
-      throw error;
+    return result;
+  }
+
+  async resendOTP(email) {
+    const response = await fetch(`${API_URL}/resend-otp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email })
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      throw new Error(result.error || 'Failed to resend OTP');
     }
-  },
 
-  verifyOtp: async (data) => {
-    try {
-      return await fetchWithJson('/api/auth/verify-otp', {
-        method: 'POST',
-        body: JSON.stringify(data),
-      });
-    } catch (error) {
-      console.error('[AuthService] Verify OTP API error:', error.message);
-      throw error;
+    return result;
+  }
+
+  async login(email, password) {
+    const response = await fetch(`${API_URL}/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password })
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      throw new Error(result.error || 'Login failed');
     }
-  },
 
-  sendOtp: async (email) => {
-    try {
-      return await fetchWithJson('/api/auth/send-otp', {
-        method: 'POST',
-        body: JSON.stringify({ email }),
-      });
-    } catch (error) {
-      console.error('[AuthService] Send OTP API error:', error.message);
-      throw error;
+    // Store tokens
+    if (result.accessToken) {
+      localStorage.setItem('accessToken', result.accessToken);
+      localStorage.setItem('refreshToken', result.refreshToken);
+      localStorage.setItem('user', JSON.stringify(result.user));
     }
-  },
 
-  changePassword: async (data, token) => {
-    try {
-      return await fetchWithJson('/api/auth/change-password', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-        body: JSON.stringify(data),
-      });
-    } catch (error) {
-      console.error('[AuthService] Change password API error:', error.message);
-      throw error;
+    return result;
+  }
+
+  async logout() {
+    const refreshToken = localStorage.getItem('refreshToken');
+    const accessToken = localStorage.getItem('accessToken');
+
+    if (accessToken) {
+      try {
+        await fetch(`${API_URL}/logout`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${accessToken}`
+          },
+          body: JSON.stringify({ refreshToken })
+        });
+      } catch (error) {
+        console.error('Logout error:', error);
+      }
     }
-  },
-};
 
-export default authService;
+    localStorage.removeItem('accessToken');
+    localStorage.removeItem('refreshToken');
+    localStorage.removeItem('user');
+  }
+
+  async getMe() {
+    const accessToken = localStorage.getItem('accessToken');
+
+    if (!accessToken) {
+      throw new Error('No access token');
+    }
+
+    const response = await fetch(`${API_URL}/me`, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`
+      }
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      throw new Error(result.error || 'Failed to get user info');
+    }
+
+    return result;
+  }
+
+  async refreshToken() {
+    const refreshToken = localStorage.getItem('refreshToken');
+
+    if (!refreshToken) {
+      throw new Error('No refresh token');
+    }
+
+    const response = await fetch(`${API_URL}/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refreshToken })
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      throw new Error(result.error || 'Token refresh failed');
+    }
+
+    localStorage.setItem('accessToken', result.accessToken);
+    return result;
+  }
+
+  getUser() {
+    const user = localStorage.getItem('user');
+    return user ? JSON.parse(user) : null;
+  }
+
+  isAuthenticated() {
+    return !!localStorage.getItem('accessToken');
+  }
+
+  // Admin endpoints
+  async getPendingUsers() {
+    const accessToken = localStorage.getItem('accessToken');
+
+    const response = await fetch(`${API_URL}/admin/pending-users`, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`
+      }
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      throw new Error(result.error || 'Failed to get pending users');
+    }
+
+    return result;
+  }
+
+  async approveUser(userId) {
+    const accessToken = localStorage.getItem('accessToken');
+
+    const response = await fetch(`${API_URL}/admin/approve-user/${userId}`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`
+      }
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      throw new Error(result.error || 'Failed to approve user');
+    }
+
+    return result;
+  }
+
+  async rejectUser(userId) {
+    const accessToken = localStorage.getItem('accessToken');
+
+    const response = await fetch(`${API_URL}/admin/reject-user/${userId}`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`
+      }
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      throw new Error(result.error || 'Failed to reject user');
+    }
+
+    return result;
+  }
+}
+
+export default new AuthService();

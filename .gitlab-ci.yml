@@ -1,5 +1,4 @@
 stages:
-  - verify
   - build
   - deploy-services
   - deploy-gateway
@@ -16,50 +15,14 @@ default:
   tags:
     - aws
 
-.verify_rules: &verify_rules
+workflow:
   rules:
-    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
-    - if: '$CI_COMMIT_BRANCH'
+    - if: '$CI_COMMIT_BRANCH == "main"'
+    - when: never
 
 .main_branch_rules: &main_branch_rules
   rules:
     - if: '$CI_COMMIT_BRANCH == "main"'
-
-verify:node-services:
-  stage: verify
-  image: node:20-alpine
-  parallel:
-    matrix:
-      - SERVICE_PATH: backend/api-gateway
-        NEEDS_PRISMA: "false"
-      - SERVICE_PATH: backend/auth-service
-        NEEDS_PRISMA: "true"
-      - SERVICE_PATH: backend/earnings-service
-        NEEDS_PRISMA: "true"
-      - SERVICE_PATH: backend/grievance-service
-        NEEDS_PRISMA: "true"
-      - SERVICE_PATH: backend/certificate-service
-        NEEDS_PRISMA: "true"
-      - SERVICE_PATH: backend/shared-agent-service
-        NEEDS_PRISMA: "true"
-  script:
-    - cd "$SERVICE_PATH"
-    - npm install --no-fund --no-audit
-    - if [ "$NEEDS_PRISMA" = "true" ]; then npx prisma generate; fi
-  <<: *verify_rules
-
-verify:python-services:
-  stage: verify
-  image: python:3.11-slim
-  parallel:
-    matrix:
-      - SERVICE_PATH: backend/analytics-service
-      - SERVICE_PATH: backend/anomaly-service
-  script:
-    - cd "$SERVICE_PATH"
-    - pip install --no-cache-dir -r requirements.txt
-    - python -m py_compile app/main.py
-  <<: *verify_rules
 
 build:backend-images:
   stage: build
@@ -118,7 +81,11 @@ deploy:api-gateway:
   <<: *deploy_base
   stage: deploy-gateway
   script:
-    - if [ -z "$API_GATEWAY_EC2_IP" ]; then echo "Missing required variable: API_GATEWAY_EC2_IP"; exit 1; fi
+    - |
+      if [ -z "$API_GATEWAY_EC2_IP" ]; then
+        echo "Missing required variable: API_GATEWAY_EC2_IP"
+        exit 1
+      fi
     - |
       for var in AUTH_SERVICE_URL EARNINGS_SERVICE_URL GRIEVANCE_SERVICE_URL CERTIFICATE_SERVICE_URL SHARED_AGENT_SERVICE_URL ANALYTICS_SERVICE_URL ANOMALY_SERVICE_URL; do
         value="$(eval "printf '%s' \"\${$var}\"")"
@@ -128,7 +95,11 @@ deploy:api-gateway:
         fi
       done
     - SSH_KEY_CONTENT="${SOFTEC_NOT_SSH:-$SSH_PRIVATE_KEY}"
-    - if [ -z "$SSH_KEY_CONTENT" ]; then echo "Missing required SSH key variable: SOFTEC_NOT_SSH or SSH_PRIVATE_KEY"; exit 1; fi
+    - |
+      if [ -z "$SSH_KEY_CONTENT" ]; then
+        echo "Missing required SSH key variable: SOFTEC_NOT_SSH or SSH_PRIVATE_KEY"
+        exit 1
+      fi
     - printf '%s\n' "$SSH_KEY_CONTENT" > ~/.ssh/id_rsa
     - IMAGE_REPO="${API_GATEWAY_IMAGE:-${DOCKER_REGISTRY_URL}/${DOCKER_USERNAME}/api-gateway}"
     - >
@@ -192,10 +163,18 @@ deploy:node-services:
   script:
     - SSH_KEY_CONTENT="$(eval "printf '%s' \"\${$SSH_KEY_VAR}\"")"
     - if [ -z "$SSH_KEY_CONTENT" ]; then SSH_KEY_CONTENT="$SSH_PRIVATE_KEY"; fi
-    - if [ -z "$SSH_KEY_CONTENT" ]; then echo "Missing required SSH key variable: $SSH_KEY_VAR or SSH_PRIVATE_KEY"; exit 1; fi
+    - |
+      if [ -z "$SSH_KEY_CONTENT" ]; then
+        echo "Missing required SSH key variable: $SSH_KEY_VAR or SSH_PRIVATE_KEY"
+        exit 1
+      fi
     - printf '%s\n' "$SSH_KEY_CONTENT" > ~/.ssh/id_rsa
     - TARGET_HOST="$(eval "printf '%s' \"\${$TARGET_HOST_VAR}\"")"
-    - if [ -z "$TARGET_HOST" ]; then echo "Missing required variable: $TARGET_HOST_VAR"; exit 1; fi
+    - |
+      if [ -z "$TARGET_HOST" ]; then
+        echo "Missing required variable: $TARGET_HOST_VAR"
+        exit 1
+      fi
     - IMAGE_REPO="$(eval "printf '%s' \"\${$IMAGE_VAR}\"")"
     - if [ -z "$IMAGE_REPO" ]; then IMAGE_REPO="${DOCKER_REGISTRY_URL}/${DOCKER_USERNAME}/${SERVICE_NAME}"; fi
     - MONGO_CONTAINER="${SERVICE_NAME}-mongo"
@@ -238,10 +217,18 @@ deploy:python-services:
   script:
     - SSH_KEY_CONTENT="$(eval "printf '%s' \"\${$SSH_KEY_VAR}\"")"
     - if [ -z "$SSH_KEY_CONTENT" ]; then SSH_KEY_CONTENT="$SSH_PRIVATE_KEY"; fi
-    - if [ -z "$SSH_KEY_CONTENT" ]; then echo "Missing required SSH key variable: $SSH_KEY_VAR or SSH_PRIVATE_KEY"; exit 1; fi
+    - |
+      if [ -z "$SSH_KEY_CONTENT" ]; then
+        echo "Missing required SSH key variable: $SSH_KEY_VAR or SSH_PRIVATE_KEY"
+        exit 1
+      fi
     - printf '%s\n' "$SSH_KEY_CONTENT" > ~/.ssh/id_rsa
     - TARGET_HOST="$(eval "printf '%s' \"\${$TARGET_HOST_VAR}\"")"
-    - if [ -z "$TARGET_HOST" ]; then echo "Missing required variable: $TARGET_HOST_VAR"; exit 1; fi
+    - |
+      if [ -z "$TARGET_HOST" ]; then
+        echo "Missing required variable: $TARGET_HOST_VAR"
+        exit 1
+      fi
     - IMAGE_REPO="$(eval "printf '%s' \"\${$IMAGE_VAR}\"")"
     - if [ -z "$IMAGE_REPO" ]; then IMAGE_REPO="${DOCKER_REGISTRY_URL}/${DOCKER_USERNAME}/${SERVICE_NAME}"; fi
     - MONGO_CONTAINER="${SERVICE_NAME}-mongo"

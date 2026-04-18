@@ -21,11 +21,12 @@
       dockerfile: Dockerfile
     container_name: auth-service
     environment:
-      - DATABASE_URL=mongodb://auth-mongo:27017/auth_service
+      - DATABASE_URL=mongodb://auth-mongo:27017/auth_service?replicaSet=rs0
     ports:
       - '4001:4001'
     depends_on:
-      - auth-mongo
+      auth-mongo:
+        condition: service_healthy
 
   earnings-service:
     build:
@@ -33,11 +34,12 @@
       dockerfile: Dockerfile
     container_name: earnings-service
     environment:
-      - DATABASE_URL=mongodb://earnings-mongo:27017/earnings_service
+      - DATABASE_URL=mongodb://earnings-mongo:27017/earnings_service?replicaSet=rs0
     ports:
       - '4002:4002'
     depends_on:
-      - earnings-mongo
+      earnings-mongo:
+        condition: service_healthy
 
   grievance-service:
     build:
@@ -45,11 +47,12 @@
       dockerfile: Dockerfile
     container_name: grievance-service
     environment:
-      - DATABASE_URL=mongodb://grievance-mongo:27017/grievance_service
+      - DATABASE_URL=mongodb://grievance-mongo:27017/grievance_service?replicaSet=rs0
     ports:
       - '4003:4003'
     depends_on:
-      - grievance-mongo
+      grievance-mongo:
+        condition: service_healthy
 
   certificate-service:
     build:
@@ -57,11 +60,12 @@
       dockerfile: Dockerfile
     container_name: certificate-service
     environment:
-      - DATABASE_URL=mongodb://certificate-mongo:27017/certificate_service
+      - DATABASE_URL=mongodb://certificate-mongo:27017/certificate_service?replicaSet=rs0
     ports:
       - '4004:4004'
     depends_on:
-      - certificate-mongo
+      certificate-mongo:
+        condition: service_healthy
 
   shared-agent-service:
     build:
@@ -69,11 +73,12 @@
       dockerfile: Dockerfile
     container_name: shared-agent-service
     environment:
-      - DATABASE_URL=mongodb://shared-agent-mongo:27017/shared_agent_service
+      - DATABASE_URL=mongodb://shared-agent-mongo:27017/shared_agent_service?replicaSet=rs0
     ports:
       - '4005:4005'
     depends_on:
-      - shared-agent-mongo
+      shared-agent-mongo:
+        condition: service_healthy
 
   analytics-service:
     build:
@@ -81,12 +86,13 @@
       dockerfile: Dockerfile
     container_name: analytics-service
     environment:
-      - DATABASE_URL=mongodb://analytics-mongo:27017/analytics_service
+      - DATABASE_URL=mongodb://analytics-mongo:27017/analytics_service?replicaSet=rs0
     command: uvicorn app.main:app --host 0.0.0.0 --port 8001
     ports:
       - '8001:8001'
     depends_on:
-      - analytics-mongo
+      analytics-mongo:
+        condition: service_healthy
 
   anomaly-service:
     build:
@@ -94,18 +100,27 @@
       dockerfile: Dockerfile
     container_name: anomaly-service
     environment:
-      - DATABASE_URL=mongodb://anomaly-mongo:27017/anomaly_service
+      - DATABASE_URL=mongodb://anomaly-mongo:27017/anomaly_service?replicaSet=rs0
     command: uvicorn app.main:app --host 0.0.0.0 --port 8002
     ports:
       - '8002:8002'
     depends_on:
-      - anomaly-mongo
+      anomaly-mongo:
+        condition: service_healthy
 
   auth-mongo:
     image: mongo:7
     container_name: auth-mongo
+    command: ["--replSet", "rs0", "--bind_ip_all"]
     volumes:
       - auth_mongo_data:/data/db
+    healthcheck:
+      test: echo "try { rs.status() } catch (err) { rs.initiate({_id:'rs0',members:[{_id:0,host:'auth-mongo:27017'}]}) }" | mongosh --port 27017 --quiet
+      interval: 5s
+      timeout: 30s
+      start_period: 0s
+      start_interval: 1s
+      retries: 30
 
   auth-mongo-express:
     image: mongo-express:latest
@@ -122,8 +137,16 @@
   earnings-mongo:
     image: mongo:7
     container_name: earnings-mongo
+    command: ["--replSet", "rs0", "--bind_ip_all"]
     volumes:
       - earnings_mongo_data:/data/db
+    healthcheck:
+      test: echo "try { rs.status() } catch (err) { rs.initiate({_id:'rs0',members:[{_id:0,host:'earnings-mongo:27017'}]}) }" | mongosh --port 27017 --quiet
+      interval: 5s
+      timeout: 30s
+      start_period: 0s
+      start_interval: 1s
+      retries: 30
 
   earnings-mongo-express:
     image: mongo-express:latest
@@ -140,8 +163,16 @@
   grievance-mongo:
     image: mongo:7
     container_name: grievance-mongo
+    command: ["--replSet", "rs0", "--bind_ip_all"]
     volumes:
       - grievance_mongo_data:/data/db
+    healthcheck:
+      test: echo "try { rs.status() } catch (err) { rs.initiate({_id:'rs0',members:[{_id:0,host:'grievance-mongo:27017'}]}) }" | mongosh --port 27017 --quiet
+      interval: 5s
+      timeout: 30s
+      start_period: 0s
+      start_interval: 1s
+      retries: 30
 
   grievance-mongo-express:
     image: mongo-express:latest
@@ -158,8 +189,16 @@
   certificate-mongo:
     image: mongo:7
     container_name: certificate-mongo
+    command: ["--replSet", "rs0", "--bind_ip_all"]
     volumes:
       - certificate_mongo_data:/data/db
+    healthcheck:
+      test: echo "try { rs.status() } catch (err) { rs.initiate({_id:'rs0',members:[{_id:0,host:'certificate-mongo:27017'}]}) }" | mongosh --port 27017 --quiet
+      interval: 5s
+      timeout: 30s
+      start_period: 0s
+      start_interval: 1s
+      retries: 30
 
   certificate-mongo-express:
     image: mongo-express:latest
@@ -176,8 +215,16 @@
   shared-agent-mongo:
     image: mongo:7
     container_name: shared-agent-mongo
+    command: ["--replSet", "rs0", "--bind_ip_all"]
     volumes:
       - shared_agent_mongo_data:/data/db
+    healthcheck:
+      test: echo "try { rs.status() } catch (err) { rs.initiate({_id:'rs0',members:[{_id:0,host:'shared-agent-mongo:27017'}]}) }" | mongosh --port 27017 --quiet
+      interval: 5s
+      timeout: 30s
+      start_period: 0s
+      start_interval: 1s
+      retries: 30
 
   shared-agent-mongo-express:
     image: mongo-express:latest
@@ -194,8 +241,16 @@
   analytics-mongo:
     image: mongo:7
     container_name: analytics-mongo
+    command: ["--replSet", "rs0", "--bind_ip_all"]
     volumes:
       - analytics_mongo_data:/data/db
+    healthcheck:
+      test: echo "try { rs.status() } catch (err) { rs.initiate({_id:'rs0',members:[{_id:0,host:'analytics-mongo:27017'}]}) }" | mongosh --port 27017 --quiet
+      interval: 5s
+      timeout: 30s
+      start_period: 0s
+      start_interval: 1s
+      retries: 30
 
   analytics-mongo-express:
     image: mongo-express:latest
@@ -212,8 +267,16 @@
   anomaly-mongo:
     image: mongo:7
     container_name: anomaly-mongo
+    command: ["--replSet", "rs0", "--bind_ip_all"]
     volumes:
       - anomaly_mongo_data:/data/db
+    healthcheck:
+      test: echo "try { rs.status() } catch (err) { rs.initiate({_id:'rs0',members:[{_id:0,host:'anomaly-mongo:27017'}]}) }" | mongosh --port 27017 --quiet
+      interval: 5s
+      timeout: 30s
+      start_period: 0s
+      start_interval: 1s
+      retries: 30
 
   anomaly-mongo-express:
     image: mongo-express:latest

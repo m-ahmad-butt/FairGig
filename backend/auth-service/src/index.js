@@ -4,6 +4,9 @@ const express = require('express');
 const cors = require('cors');
 const { PrismaClient } = require('@prisma/client');
 
+const authRoutes = require('./routes/authRoutes');
+const adminRoutes = require('./routes/adminRoutes');
+
 const app = express();
 const prisma = new PrismaClient();
 const port = Number(process.env.PORT || 4001);
@@ -33,6 +36,16 @@ app.get('/', (req, res) => {
   res.json({
     message: 'auth-service is running'
   });
+});
+
+// Routes
+app.use('/api/auth', authRoutes);
+app.use('/api/auth/admin', adminRoutes);
+
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).json({ error: 'Something went wrong!' });
 });
 
 app.listen(port, '0.0.0.0', () => {
