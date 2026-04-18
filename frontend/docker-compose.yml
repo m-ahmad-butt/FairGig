@@ -1,7 +1,7 @@
 services:
   frontend:
     build:
-      context: ./frontend
+      context: .
       dockerfile: Dockerfile
       args:
         VITE_CLERK_PUBLISHABLE_KEY: ${VITE_CLERK_PUBLISHABLE_KEY}
@@ -16,5 +16,5 @@ services:
 
 networks:
   hackathon-network:
-    external: true
     name: hackathon-network
+    external: true

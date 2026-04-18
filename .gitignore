@@ -3,6 +3,7 @@
 .env-prod
 .env.*
 !.env.example
+!.env.prod.example
 scripts/
 secrets.md
 sample/

@@ -4,8 +4,6 @@
       context: ./api-gateway
       dockerfile: Dockerfile
     container_name: api-gateway
-    env_file:
-      - ./api-gateway/.env
     ports:
       - '8080:8080'
     depends_on:
@@ -22,8 +20,6 @@
       context: ./auth-service
       dockerfile: Dockerfile
     container_name: auth-service
-    env_file:
-      - ./auth-service/.env
     environment:
       - DATABASE_URL=mongodb://auth-mongo:27017/auth_service
     ports:
@@ -36,8 +32,6 @@
       context: ./earnings-service
       dockerfile: Dockerfile
     container_name: earnings-service
-    env_file:
-      - ./earnings-service/.env
     environment:
       - DATABASE_URL=mongodb://earnings-mongo:27017/earnings_service
     ports:
@@ -50,8 +44,6 @@
       context: ./grievance-service
       dockerfile: Dockerfile
     container_name: grievance-service
-    env_file:
-      - ./grievance-service/.env
     environment:
       - DATABASE_URL=mongodb://grievance-mongo:27017/grievance_service
     ports:
@@ -64,8 +56,6 @@
       context: ./certificate-service
       dockerfile: Dockerfile
     container_name: certificate-service
-    env_file:
-      - ./certificate-service/.env
     environment:
       - DATABASE_URL=mongodb://certificate-mongo:27017/certificate_service
     ports:
@@ -78,8 +68,6 @@
       context: ./shared-agent-service
       dockerfile: Dockerfile
     container_name: shared-agent-service
-    env_file:
-      - ./shared-agent-service/.env
     environment:
       - DATABASE_URL=mongodb://shared-agent-mongo:27017/shared_agent_service
     ports:
@@ -92,8 +80,6 @@
       context: ./analytics-service
       dockerfile: Dockerfile
     container_name: analytics-service
-    env_file:
-      - ./analytics-service/.env
     environment:
       - DATABASE_URL=mongodb://analytics-mongo:27017/analytics_service
     command: uvicorn app.main:app --host 0.0.0.0 --port 8001
@@ -107,8 +93,6 @@
       context: ./anomaly-service
       dockerfile: Dockerfile
     container_name: anomaly-service
-    env_file:
-      - ./anomaly-service/.env
     environment:
       - DATABASE_URL=mongodb://anomaly-mongo:27017/anomaly_service
     command: uvicorn app.main:app --host 0.0.0.0 --port 8002
@@ -167,3 +151,8 @@ volumes:
   shared_agent_mongo_data:
   analytics_mongo_data:
   anomaly_mongo_data:
+
+networks:
+  default:
+    name: hackathon-network
+    external: true

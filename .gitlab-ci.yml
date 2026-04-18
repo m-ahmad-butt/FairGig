@@ -1,0 +1,261 @@
+stages:
+  - verify
+  - build
+  - deploy-services
+  - deploy-gateway
+
+variables:
+  DOCKER_DRIVER: overlay2
+  DOCKER_TLS_CERTDIR: ""
+  DOCKER_BUILDKIT: "1"
+  DOCKER_REGISTRY_URL: docker.io
+  DEPLOY_NETWORK: hackathon-network
+  SSH_REMOTE_USER: ubuntu
+
+default:
+  tags:
+    - aws
+
+.verify_rules: &verify_rules
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH'
+
+.main_branch_rules: &main_branch_rules
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+
+verify:node-services:
+  stage: verify
+  image: node:20-alpine
+  parallel:
+    matrix:
+      - SERVICE_PATH: backend/api-gateway
+        NEEDS_PRISMA: "false"
+      - SERVICE_PATH: backend/auth-service
+        NEEDS_PRISMA: "true"
+      - SERVICE_PATH: backend/earnings-service
+        NEEDS_PRISMA: "true"
+      - SERVICE_PATH: backend/grievance-service
+        NEEDS_PRISMA: "true"
+      - SERVICE_PATH: backend/certificate-service
+        NEEDS_PRISMA: "true"
+      - SERVICE_PATH: backend/shared-agent-service
+        NEEDS_PRISMA: "true"
+  script:
+    - cd "$SERVICE_PATH"
+    - npm install --no-fund --no-audit
+    - if [ "$NEEDS_PRISMA" = "true" ]; then npx prisma generate; fi
+  <<: *verify_rules
+
+verify:python-services:
+  stage: verify
+  image: python:3.11-slim
+  parallel:
+    matrix:
+      - SERVICE_PATH: backend/analytics-service
+      - SERVICE_PATH: backend/anomaly-service
+  script:
+    - cd "$SERVICE_PATH"
+    - pip install --no-cache-dir -r requirements.txt
+    - python -m py_compile app/main.py
+  <<: *verify_rules
+
+build:backend-images:
+  stage: build
+  image: docker:24.0.5
+  services:
+    - name: docker:24.0.5-dind
+      alias: docker
+  parallel:
+    matrix:
+      - SERVICE_NAME: api-gateway
+        SERVICE_PATH: backend/api-gateway
+        IMAGE_VAR: API_GATEWAY_IMAGE
+      - SERVICE_NAME: auth-service
+        SERVICE_PATH: backend/auth-service
+        IMAGE_VAR: AUTH_IMAGE
+      - SERVICE_NAME: earnings-service
+        SERVICE_PATH: backend/earnings-service
+        IMAGE_VAR: EARNINGS_IMAGE
+      - SERVICE_NAME: grievance-service
+        SERVICE_PATH: backend/grievance-service
+        IMAGE_VAR: GRIEVANCE_IMAGE
+      - SERVICE_NAME: certificate-service
+        SERVICE_PATH: backend/certificate-service
+        IMAGE_VAR: CERTIFICATE_IMAGE
+      - SERVICE_NAME: shared-agent-service
+        SERVICE_PATH: backend/shared-agent-service
+        IMAGE_VAR: SHARED_AGENT_IMAGE
+      - SERVICE_NAME: analytics-service
+        SERVICE_PATH: backend/analytics-service
+        IMAGE_VAR: ANALYTICS_IMAGE
+      - SERVICE_NAME: anomaly-service
+        SERVICE_PATH: backend/anomaly-service
+        IMAGE_VAR: ANOMALY_IMAGE
+  before_script:
+    - echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
+  script:
+    - IMAGE_REPO="$(eval "printf '%s' \"\${$IMAGE_VAR}\"")"
+    - if [ -z "$IMAGE_REPO" ]; then IMAGE_REPO="${DOCKER_REGISTRY_URL}/${DOCKER_USERNAME}/${SERVICE_NAME}"; fi
+    - docker build --pull -t "${IMAGE_REPO}:${CI_COMMIT_SHORT_SHA}" -t "${IMAGE_REPO}:latest" "${SERVICE_PATH}"
+    - docker push "${IMAGE_REPO}:${CI_COMMIT_SHORT_SHA}"
+    - docker push "${IMAGE_REPO}:latest"
+  <<: *main_branch_rules
+
+.deploy_base: &deploy_base
+  image: alpine:3.20
+  before_script:
+    - apk add --no-cache openssh-client
+    - mkdir -p ~/.ssh
+    - chmod 700 ~/.ssh
+    - touch ~/.ssh/id_rsa
+    - chmod 600 ~/.ssh/id_rsa
+    - export DOCKER_PASSWORD_B64="$(printf '%s' "$DOCKER_PASSWORD" | base64 | tr -d '\n')"
+  <<: *main_branch_rules
+
+deploy:api-gateway:
+  <<: *deploy_base
+  stage: deploy-gateway
+  script:
+    - if [ -z "$API_GATEWAY_EC2_IP" ]; then echo "Missing required variable: API_GATEWAY_EC2_IP"; exit 1; fi
+    - |
+      for var in AUTH_SERVICE_URL EARNINGS_SERVICE_URL GRIEVANCE_SERVICE_URL CERTIFICATE_SERVICE_URL SHARED_AGENT_SERVICE_URL ANALYTICS_SERVICE_URL ANOMALY_SERVICE_URL; do
+        value="$(eval "printf '%s' \"\${$var}\"")"
+        if [ -z "$value" ]; then
+          echo "Missing required variable: $var"
+          exit 1
+        fi
+      done
+    - SSH_KEY_CONTENT="${SOFTEC_NOT_SSH:-$SSH_PRIVATE_KEY}"
+    - if [ -z "$SSH_KEY_CONTENT" ]; then echo "Missing required SSH key variable: SOFTEC_NOT_SSH or SSH_PRIVATE_KEY"; exit 1; fi
+    - printf '%s\n' "$SSH_KEY_CONTENT" > ~/.ssh/id_rsa
+    - IMAGE_REPO="${API_GATEWAY_IMAGE:-${DOCKER_REGISTRY_URL}/${DOCKER_USERNAME}/api-gateway}"
+    - >
+      ssh -o StrictHostKeyChecking=no "${SSH_REMOTE_USER}@${API_GATEWAY_EC2_IP}"
+      "set -eu;
+      echo '${DOCKER_PASSWORD_B64}' | base64 -d | sudo docker login -u '${DOCKER_USERNAME}' --password-stdin;
+      sudo docker network create ${DEPLOY_NETWORK} >/dev/null 2>&1 || true;
+      sudo docker rm -f api-gateway >/dev/null 2>&1 || true;
+      sudo docker pull ${IMAGE_REPO}:${CI_COMMIT_SHORT_SHA};
+      sudo docker run -d --name api-gateway --network ${DEPLOY_NETWORK} --restart unless-stopped -p 8080:8080 -e PORT=8080 -e AUTH_SERVICE_URL='${AUTH_SERVICE_URL}' -e EARNINGS_SERVICE_URL='${EARNINGS_SERVICE_URL}' -e GRIEVANCE_SERVICE_URL='${GRIEVANCE_SERVICE_URL}' -e CERTIFICATE_SERVICE_URL='${CERTIFICATE_SERVICE_URL}' -e SHARED_AGENT_SERVICE_URL='${SHARED_AGENT_SERVICE_URL}' -e ANALYTICS_SERVICE_URL='${ANALYTICS_SERVICE_URL}' -e ANOMALY_SERVICE_URL='${ANOMALY_SERVICE_URL}' ${IMAGE_REPO}:${CI_COMMIT_SHORT_SHA};
+      sudo docker image prune -af --filter 'until=168h' >/dev/null 2>&1 || true"
+  environment:
+    name: production/api-gateway
+    url: "http://${API_GATEWAY_EC2_IP}:8080"
+
+deploy:node-services:
+  <<: *deploy_base
+  stage: deploy-services
+  parallel:
+    matrix:
+      - SERVICE_NAME: auth-service
+        SERVICE_PORT: "4001"
+        DATABASE_NAME: auth_service
+        MONGO_HOST_PORT: "27017"
+        MONGO_EXPRESS_PORT: "8081"
+        IMAGE_VAR: AUTH_IMAGE
+        SSH_KEY_VAR: SOFTEC_LF_SSH
+        TARGET_HOST_VAR: AUTH_EC2_IP
+      - SERVICE_NAME: earnings-service
+        SERVICE_PORT: "4002"
+        DATABASE_NAME: earnings_service
+        MONGO_HOST_PORT: "27018"
+        MONGO_EXPRESS_PORT: "8082"
+        IMAGE_VAR: EARNINGS_IMAGE
+        SSH_KEY_VAR: SOFTEC_LF_SSH
+        TARGET_HOST_VAR: EARNINGS_EC2_IP
+      - SERVICE_NAME: grievance-service
+        SERVICE_PORT: "4003"
+        DATABASE_NAME: grievance_service
+        MONGO_HOST_PORT: "27019"
+        MONGO_EXPRESS_PORT: "8083"
+        IMAGE_VAR: GRIEVANCE_IMAGE
+        SSH_KEY_VAR: SOFTEC_LF_SSH
+        TARGET_HOST_VAR: GRIEVANCE_EC2_IP
+      - SERVICE_NAME: certificate-service
+        SERVICE_PORT: "4004"
+        DATABASE_NAME: certificate_service
+        MONGO_HOST_PORT: "27020"
+        MONGO_EXPRESS_PORT: "8084"
+        IMAGE_VAR: CERTIFICATE_IMAGE
+        SSH_KEY_VAR: SOFTEC_LF_SSH
+        TARGET_HOST_VAR: CERTIFICATE_EC2_IP
+      - SERVICE_NAME: shared-agent-service
+        SERVICE_PORT: "4005"
+        DATABASE_NAME: shared_agent_service
+        MONGO_HOST_PORT: "27021"
+        MONGO_EXPRESS_PORT: "8085"
+        IMAGE_VAR: SHARED_AGENT_IMAGE
+        SSH_KEY_VAR: SOFTEC_NOT_SSH
+        TARGET_HOST_VAR: SHARED_AGENT_EC2_IP
+  script:
+    - SSH_KEY_CONTENT="$(eval "printf '%s' \"\${$SSH_KEY_VAR}\"")"
+    - if [ -z "$SSH_KEY_CONTENT" ]; then SSH_KEY_CONTENT="$SSH_PRIVATE_KEY"; fi
+    - if [ -z "$SSH_KEY_CONTENT" ]; then echo "Missing required SSH key variable: $SSH_KEY_VAR or SSH_PRIVATE_KEY"; exit 1; fi
+    - printf '%s\n' "$SSH_KEY_CONTENT" > ~/.ssh/id_rsa
+    - TARGET_HOST="$(eval "printf '%s' \"\${$TARGET_HOST_VAR}\"")"
+    - if [ -z "$TARGET_HOST" ]; then echo "Missing required variable: $TARGET_HOST_VAR"; exit 1; fi
+    - IMAGE_REPO="$(eval "printf '%s' \"\${$IMAGE_VAR}\"")"
+    - if [ -z "$IMAGE_REPO" ]; then IMAGE_REPO="${DOCKER_REGISTRY_URL}/${DOCKER_USERNAME}/${SERVICE_NAME}"; fi
+    - MONGO_CONTAINER="${SERVICE_NAME}-mongo"
+    - MONGO_EXPRESS_CONTAINER="${MONGO_CONTAINER}-express"
+    - >
+      ssh -o StrictHostKeyChecking=no "${SSH_REMOTE_USER}@${TARGET_HOST}"
+      "set -eu;
+      echo '${DOCKER_PASSWORD_B64}' | base64 -d | sudo docker login -u '${DOCKER_USERNAME}' --password-stdin;
+      sudo docker network create ${DEPLOY_NETWORK} >/dev/null 2>&1 || true;
+      sudo docker rm -f ${MONGO_CONTAINER} >/dev/null 2>&1 || true;
+      sudo docker run -d --name ${MONGO_CONTAINER} --network ${DEPLOY_NETWORK} --restart unless-stopped -p ${MONGO_HOST_PORT}:27017 -v ${MONGO_CONTAINER}-data:/data/db mongo:7 >/dev/null;
+      sudo docker rm -f ${MONGO_EXPRESS_CONTAINER} >/dev/null 2>&1 || true;
+      sudo docker run -d --name ${MONGO_EXPRESS_CONTAINER} --network ${DEPLOY_NETWORK} --restart unless-stopped -p ${MONGO_EXPRESS_PORT}:8081 -e ME_CONFIG_MONGODB_URL='mongodb://${MONGO_CONTAINER}:27017/?directConnection=true' -e ME_CONFIG_BASICAUTH=false mongo-express:latest >/dev/null;
+      sudo docker rm -f ${SERVICE_NAME} >/dev/null 2>&1 || true;
+      sudo docker pull ${IMAGE_REPO}:${CI_COMMIT_SHORT_SHA};
+      sudo docker run -d --name ${SERVICE_NAME} --network ${DEPLOY_NETWORK} --restart unless-stopped -p ${SERVICE_PORT}:${SERVICE_PORT} -e PORT=${SERVICE_PORT} -e SERVICE_NAME=${SERVICE_NAME} -e FRONTEND_URL='${FRONTEND_URL}' -e DATABASE_URL='mongodb://${MONGO_CONTAINER}:27017/${DATABASE_NAME}' ${IMAGE_REPO}:${CI_COMMIT_SHORT_SHA};
+      sudo docker image prune -af --filter 'until=168h' >/dev/null 2>&1 || true"
+
+deploy:python-services:
+  <<: *deploy_base
+  stage: deploy-services
+  parallel:
+    matrix:
+      - SERVICE_NAME: analytics-service
+        SERVICE_PORT: "8001"
+        DATABASE_NAME: analytics_service
+        MONGO_HOST_PORT: "27022"
+        MONGO_EXPRESS_PORT: "8086"
+        IMAGE_VAR: ANALYTICS_IMAGE
+        SSH_KEY_VAR: SOFTEC_NOT_SSH
+        TARGET_HOST_VAR: ANALYTICS_EC2_IP
+      - SERVICE_NAME: anomaly-service
+        SERVICE_PORT: "8002"
+        DATABASE_NAME: anomaly_service
+        MONGO_HOST_PORT: "27023"
+        MONGO_EXPRESS_PORT: "8087"
+        IMAGE_VAR: ANOMALY_IMAGE
+        SSH_KEY_VAR: SOFTEC_NOT_SSH
+        TARGET_HOST_VAR: ANOMALY_EC2_IP
+  script:
+    - SSH_KEY_CONTENT="$(eval "printf '%s' \"\${$SSH_KEY_VAR}\"")"
+    - if [ -z "$SSH_KEY_CONTENT" ]; then SSH_KEY_CONTENT="$SSH_PRIVATE_KEY"; fi
+    - if [ -z "$SSH_KEY_CONTENT" ]; then echo "Missing required SSH key variable: $SSH_KEY_VAR or SSH_PRIVATE_KEY"; exit 1; fi
+    - printf '%s\n' "$SSH_KEY_CONTENT" > ~/.ssh/id_rsa
+    - TARGET_HOST="$(eval "printf '%s' \"\${$TARGET_HOST_VAR}\"")"
+    - if [ -z "$TARGET_HOST" ]; then echo "Missing required variable: $TARGET_HOST_VAR"; exit 1; fi
+    - IMAGE_REPO="$(eval "printf '%s' \"\${$IMAGE_VAR}\"")"
+    - if [ -z "$IMAGE_REPO" ]; then IMAGE_REPO="${DOCKER_REGISTRY_URL}/${DOCKER_USERNAME}/${SERVICE_NAME}"; fi
+    - MONGO_CONTAINER="${SERVICE_NAME}-mongo"
+    - MONGO_EXPRESS_CONTAINER="${MONGO_CONTAINER}-express"
+    - >
+      ssh -o StrictHostKeyChecking=no "${SSH_REMOTE_USER}@${TARGET_HOST}"
+      "set -eu;
+      echo '${DOCKER_PASSWORD_B64}' | base64 -d | sudo docker login -u '${DOCKER_USERNAME}' --password-stdin;
+      sudo docker network create ${DEPLOY_NETWORK} >/dev/null 2>&1 || true;
+      sudo docker rm -f ${MONGO_CONTAINER} >/dev/null 2>&1 || true;
+      sudo docker run -d --name ${MONGO_CONTAINER} --network ${DEPLOY_NETWORK} --restart unless-stopped -p ${MONGO_HOST_PORT}:27017 -v ${MONGO_CONTAINER}-data:/data/db mongo:7 >/dev/null;
+      sudo docker rm -f ${MONGO_EXPRESS_CONTAINER} >/dev/null 2>&1 || true;
+      sudo docker run -d --name ${MONGO_EXPRESS_CONTAINER} --network ${DEPLOY_NETWORK} --restart unless-stopped -p ${MONGO_EXPRESS_PORT}:8081 -e ME_CONFIG_MONGODB_URL='mongodb://${MONGO_CONTAINER}:27017/?directConnection=true' -e ME_CONFIG_BASICAUTH=false mongo-express:latest >/dev/null;
+      sudo docker rm -f ${SERVICE_NAME} >/dev/null 2>&1 || true;
+      sudo docker pull ${IMAGE_REPO}:${CI_COMMIT_SHORT_SHA};
+      sudo docker run -d --name ${SERVICE_NAME} --network ${DEPLOY_NETWORK} --restart unless-stopped -p ${SERVICE_PORT}:${SERVICE_PORT} -e PORT=${SERVICE_PORT} -e SERVICE_NAME=${SERVICE_NAME} -e FRONTEND_URL='${FRONTEND_URL}' -e DATABASE_URL='mongodb://${MONGO_CONTAINER}:27017/${DATABASE_NAME}' ${IMAGE_REPO}:${CI_COMMIT_SHORT_SHA} uvicorn app.main:app --host 0.0.0.0 --port ${SERVICE_PORT};
+      sudo docker image prune -af --filter 'until=168h' >/dev/null 2>&1 || true"
