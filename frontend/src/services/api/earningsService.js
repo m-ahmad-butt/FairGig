@@ -1,5 +1,5 @@
-const GATEWAY_API_BASE = import.meta.env.VITE_API_GATEWAY_URL || 'http://localhost:8080/api';
-const API_URL = `${GATEWAY_API_BASE}/earnings`;
+const GATEWAY_API_BASE = import.meta.env.VITE_API_URL || 'https://s-api-gateway.duckdns.org';
+const API_URL = `${GATEWAY_API_BASE}/api/earnings`;
 
 const getAuthHeaders = () => {
   const token = localStorage.getItem('accessToken');

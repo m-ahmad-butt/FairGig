@@ -77,7 +77,14 @@ build:frontend-image:
     - echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
   script:
     - IMAGE_REPO="${FRONTEND_IMAGE:-${DOCKER_REGISTRY_URL}/${DOCKER_USERNAME}/s-frontend}"
-    - docker build --pull -t "${IMAGE_REPO}:${CI_COMMIT_SHORT_SHA}" -t "${IMAGE_REPO}:latest" frontend
+    - >
+      docker build --pull 
+      --build-arg VITE_API_URL="${VITE_API_URL}" 
+      --build-arg VITE_CLERK_PUBLISHABLE_KEY="${VITE_CLERK_PUBLISHABLE_KEY}" 
+      --build-arg VITE_GEOCODING_API_URL="${VITE_GEOCODING_API_URL}" 
+      -t "${IMAGE_REPO}:${CI_COMMIT_SHORT_SHA}" 
+      -t "${IMAGE_REPO}:latest" 
+      frontend
     - docker push "${IMAGE_REPO}:${CI_COMMIT_SHORT_SHA}"
     - docker push "${IMAGE_REPO}:latest"
   <<: *main_branch_rules

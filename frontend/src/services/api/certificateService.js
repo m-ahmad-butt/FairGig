@@ -1,6 +1,6 @@
-const API_URL = import.meta.env.VITE_API_GATEWAY_URL
-  ? `${import.meta.env.VITE_API_GATEWAY_URL}/certificate`
-  : 'http://localhost:8080/api/certificate';
+const API_URL = import.meta.env.VITE_API_URL
+  ? `${import.meta.env.VITE_API_URL}/api/certificate`
+  : 'https://s-api-gateway.duckdns.org/api/certificate';
 
 const getAuthHeaders = () => {
   const token = localStorage.getItem('accessToken');

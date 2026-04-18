@@ -1,6 +1,5 @@
-const AUTH_API_URL = import.meta.env.VITE_API_GATEWAY_URL || 'http://localhost:8080/api/auth';
-const GATEWAY_BASE_URL = AUTH_API_URL.replace(/\/api\/auth\/?$/i, '');
-const COMMUNITY_API_URL = `${GATEWAY_BASE_URL}/api/grievance/community`;
+const AUTH_API_URL = import.meta.env.VITE_API_URL || 'https://s-api-gateway.duckdns.org';
+const COMMUNITY_API_URL = `${AUTH_API_URL}/api/grievance/community`;
 
 function getAuthHeaders() {
   const accessToken = localStorage.getItem('accessToken');
