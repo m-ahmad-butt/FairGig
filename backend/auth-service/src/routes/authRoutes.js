@@ -16,6 +16,7 @@ router.post('/verify-otp', validateOTP, authController.verifyOTP);
 router.post('/resend-otp', validateEmail, authController.resendOTP);
 router.post('/login', validateLogin, authController.login);
 router.post('/refresh', validateRefreshToken, authController.refreshToken);
+router.get('/workers/on-platform', authController.getOnPlatformWorkers);
 router.get('/me', authenticateToken, authController.getMe);
 router.patch('/me/profile', authenticateToken, validateWorkerProfileUpdate, authController.updateWorkerProfile);
 router.post('/logout', authenticateToken, authController.logout);

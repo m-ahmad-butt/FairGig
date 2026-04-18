@@ -7,6 +7,10 @@ const otpService = require('../utils/otpService');
 const { ROLES, USER_STATUS, ADMIN_EMAIL } = require('../config/constants');
 
 class AuthController {
+  isObjectId(id) {
+    return /^[a-f\d]{24}$/i.test(id);
+  }
+
   async signup(req, res) {
     try {
       const { name, email, password, role } = req.body;
@@ -271,6 +275,34 @@ class AuthController {
       });
     } catch (error) {
       console.error('Update worker profile error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+
+  async getOnPlatformWorkers(req, res) {
+    try {
+      const { worker_id } = req.query;
+
+      if (worker_id) {
+        if (!this.isObjectId(worker_id)) {
+          return res.status(400).json({ error: 'worker_id must be a valid Mongo ObjectId string' });
+        }
+
+        const worker = await userRepository.findOnPlatformWorkerById(worker_id);
+        if (!worker) {
+          return res.status(404).json({ error: 'Worker not found on platform' });
+        }
+
+        return res.json({ worker });
+      }
+
+      const workers = await userRepository.findOnPlatformWorkers();
+      return res.json({
+        count: workers.length,
+        workers
+      });
+    } catch (error) {
+      console.error('Get on-platform workers error:', error);
       res.status(500).json({ error: 'Internal server error' });
     }
   }

@@ -63,6 +63,56 @@ class UserRepository {
       }
     });
   }
+
+  async findOnPlatformWorkers() {
+    return prisma.user.findMany({
+      where: {
+        role: 'worker',
+        emailVerified: true,
+        status: 'active'
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        status: true,
+        emailVerified: true,
+        zone: true,
+        city: true,
+        category: true,
+        vehicleType: true,
+        createdAt: true,
+        updatedAt: true
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+  }
+
+  async findOnPlatformWorkerById(id) {
+    return prisma.user.findFirst({
+      where: {
+        id,
+        role: 'worker',
+        emailVerified: true,
+        status: 'active'
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        status: true,
+        emailVerified: true,
+        zone: true,
+        city: true,
+        category: true,
+        vehicleType: true,
+        createdAt: true,
+        updatedAt: true
+      }
+    });
+  }
 }
 
 module.exports = new UserRepository();
