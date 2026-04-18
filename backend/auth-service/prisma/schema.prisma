@@ -26,6 +26,10 @@ model User {
   city          String?
   category      WorkerCategory?
   vehicleType   VehicleType?
+  platform      WorkerPlatform?
+  freelancerType FreelancerType?
+  latitude      Float?
+  longitude     Float?
   otp           String?
   otpExpiry     DateTime?
   createdAt     DateTime @default(now())
@@ -41,6 +45,37 @@ enum VehicleType {
   bike
   car
   rickshaw
+}
+
+enum WorkerPlatform {
+  careem
+  uber
+  indrive
+  bykea
+  jeeny
+  yango
+  swvl
+  airlift
+  iride
+
+  upwork
+  fiverr
+  freelancer_com
+  people_per_hour
+  guru
+  truelancer
+  workana
+  hubstaff_talent
+  contra
+  toptal
+}
+
+enum FreelancerType {
+  ui_ux
+  web_development
+  graphic_design
+  content_writing
+  digital_marketing
 }
 
 model RefreshToken {

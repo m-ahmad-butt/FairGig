@@ -5,15 +5,115 @@ const emailService = require('../utils/emailService');
 const tokenService = require('../utils/tokenService');
 const otpService = require('../utils/otpService');
 const { ROLES, USER_STATUS, ADMIN_EMAIL } = require('../config/constants');
+const {
+  PLATFORM_OPTIONS,
+  RIDER_PLATFORMS,
+  FREELANCER_PLATFORMS,
+  isWorkerCategory
+} = require('../config/platformOptions');
 
 class AuthController {
+  constructor() {
+    this.signup = this.signup.bind(this);
+    this.verifyOTP = this.verifyOTP.bind(this);
+    this.resendOTP = this.resendOTP.bind(this);
+    this.login = this.login.bind(this);
+    this.refreshToken = this.refreshToken.bind(this);
+    this.getMe = this.getMe.bind(this);
+    this.getPlatforms = this.getPlatforms.bind(this);
+    this.updateWorkerProfile = this.updateWorkerProfile.bind(this);
+    this.getOnPlatformWorkers = this.getOnPlatformWorkers.bind(this);
+    this.logout = this.logout.bind(this);
+    this.updateProfile = this.updateProfile.bind(this);
+  }
+
   isObjectId(id) {
     return /^[a-f\d]{24}$/i.test(id);
   }
 
+  normalizeOptionalString(value) {
+    if (value === undefined) {
+      return undefined;
+    }
+
+    if (value === null) {
+      return null;
+    }
+
+    return typeof value === 'string' ? value.trim() : null;
+  }
+
+  normalizeOptionalNumber(value) {
+    if (value === undefined) {
+      return undefined;
+    }
+
+    if (value === null) {
+      return null;
+    }
+
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  applyWorkerTypeAndPlatformUpdates(user, payload, updateData, categoryOverride) {
+    const effectiveCategory = categoryOverride || user.category;
+
+    if (!effectiveCategory) {
+      return 'Worker category is missing. Please contact support to initialize your category.';
+    }
+
+    if (payload.platform !== undefined) {
+      if (payload.platform === null) {
+        return 'platform cannot be null';
+      }
+
+      const allowedPlatforms = effectiveCategory === 'rider' ? RIDER_PLATFORMS : FREELANCER_PLATFORMS;
+      if (!allowedPlatforms.includes(payload.platform)) {
+        return effectiveCategory === 'rider'
+          ? `For rider category, platform must be one of ${RIDER_PLATFORMS.join(', ')}`
+          : `For freelance category, platform must be one of ${FREELANCER_PLATFORMS.join(', ')}`;
+      }
+
+      updateData.platform = payload.platform;
+    }
+
+    if (effectiveCategory === 'rider') {
+      if (payload.freelancerType !== undefined) {
+        return 'freelancerType can only be updated for freelance workers';
+      }
+
+      if (payload.vehicleType !== undefined) {
+        if (payload.vehicleType === null) {
+          return 'vehicleType cannot be null for rider workers';
+        }
+
+        updateData.vehicleType = payload.vehicleType;
+        updateData.freelancerType = null;
+      }
+    } else if (effectiveCategory === 'freelance') {
+      if (payload.vehicleType !== undefined) {
+        return 'vehicleType can only be updated for rider workers';
+      }
+
+      if (payload.freelancerType !== undefined) {
+        if (payload.freelancerType === null) {
+          return 'freelancerType cannot be null for freelance workers';
+        }
+
+        updateData.freelancerType = payload.freelancerType;
+        updateData.vehicleType = null;
+      }
+    } else {
+      return 'Unsupported worker category';
+    }
+
+    return null;
+  }
+
   async signup(req, res) {
     try {
-      const { name, email, password, role } = req.body;
+      const { name, email, password, role, category, platform, vehicleType, freelancerType } = req.body;
 
       const existingUser = await userRepository.findByEmail(email);
       if (existingUser) {
@@ -33,8 +133,12 @@ class AuthController {
         emailVerified: false,
         zone: null,
         city: null,
-        category: null,
-        vehicleType: null,
+        category: role === ROLES.WORKER ? category : null,
+        platform: role === ROLES.WORKER ? platform : null,
+        vehicleType: role === ROLES.WORKER && category === 'rider' ? vehicleType : null,
+        freelancerType: role === ROLES.WORKER && category === 'freelance' ? freelancerType : null,
+        latitude: null,
+        longitude: null,
         otp,
         otpExpiry
       });
@@ -189,7 +293,11 @@ class AuthController {
           zone: user.zone,
           city: user.city,
           category: user.category,
-          vehicleType: user.vehicleType
+          platform: user.platform,
+          vehicleType: user.vehicleType,
+          freelancerType: user.freelancerType,
+          latitude: user.latitude,
+          longitude: user.longitude
         }
       });
     } catch (error) {
@@ -244,29 +352,99 @@ class AuthController {
     }
   }
 
+  async getPlatforms(req, res) {
+    try {
+      const { category } = req.query;
+
+      if (category !== undefined) {
+        if (!isWorkerCategory(category)) {
+          return res.status(400).json({ error: 'category must be either rider or freelance' });
+        }
+
+        return res.json({
+          category,
+          platforms: PLATFORM_OPTIONS[category]
+        });
+      }
+
+      return res.json({
+        categories: Object.keys(PLATFORM_OPTIONS),
+        platforms: PLATFORM_OPTIONS
+      });
+    } catch (error) {
+      console.error('Get platforms error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+
   async updateWorkerProfile(req, res) {
     try {
       if (req.user.role !== ROLES.WORKER) {
         return res.status(403).json({ error: 'Only workers can update this profile section' });
       }
 
-      const { zone, city, category, vehicleType } = req.body;
+      const user = await userRepository.findById(req.user.userId);
+
+      if (!user) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+
+      const { zone, city, category, platform, vehicleType, freelancerType, latitude, longitude } = req.body;
+
+      let nextCategory = user.category;
+      if (category !== undefined) {
+        if (user.category && category !== user.category) {
+          return res.status(400).json({ error: 'category cannot be changed once selected' });
+        }
+
+        if (!user.category) {
+          nextCategory = category;
+        }
+      }
+
       const updateData = {};
 
       if (zone !== undefined) {
-        updateData.zone = typeof zone === 'string' ? zone.trim() : null;
+        updateData.zone = this.normalizeOptionalString(zone);
       }
 
       if (city !== undefined) {
-        updateData.city = typeof city === 'string' ? city.trim() : null;
+        updateData.city = this.normalizeOptionalString(city);
       }
 
-      if (category !== undefined) {
-        updateData.category = category;
+      if (latitude !== undefined) {
+        updateData.latitude = this.normalizeOptionalNumber(latitude);
       }
 
-      if (vehicleType !== undefined) {
-        updateData.vehicleType = vehicleType;
+      if (longitude !== undefined) {
+        updateData.longitude = this.normalizeOptionalNumber(longitude);
+      }
+
+      if (!user.category && nextCategory) {
+        updateData.category = nextCategory;
+      }
+
+      const hasWorkerTypeUpdate =
+        category !== undefined ||
+        platform !== undefined ||
+        vehicleType !== undefined ||
+        freelancerType !== undefined;
+
+      if (hasWorkerTypeUpdate) {
+        const workerUpdateError = this.applyWorkerTypeAndPlatformUpdates(
+          user,
+          { platform, vehicleType, freelancerType },
+          updateData,
+          nextCategory
+        );
+
+        if (workerUpdateError) {
+          return res.status(400).json({ error: workerUpdateError });
+        }
+      }
+
+      if (Object.keys(updateData).length === 0) {
+        return res.status(400).json({ error: 'No changes to update' });
       }
 
       await userRepository.update(req.user.userId, updateData);
@@ -284,14 +462,15 @@ class AuthController {
 
   async getOnPlatformWorkers(req, res) {
     try {
-      const { worker_id } = req.query;
+      const { worker_id, id } = req.query;
+      const lookupWorkerId = worker_id || id;
 
-      if (worker_id) {
-        if (!this.isObjectId(worker_id)) {
-          return res.status(400).json({ error: 'worker_id must be a valid Mongo ObjectId string' });
+      if (lookupWorkerId) {
+        if (!this.isObjectId(lookupWorkerId)) {
+          return res.status(400).json({ error: 'worker_id or id must be a valid Mongo ObjectId string' });
         }
 
-        const worker = await userRepository.findOnPlatformWorkerById(worker_id);
+        const worker = await userRepository.findOnPlatformWorkerById(lookupWorkerId);
         if (!worker) {
           return res.status(404).json({ error: 'Worker not found on platform' });
         }
@@ -327,7 +506,19 @@ class AuthController {
 
   async updateProfile(req, res) {
     try {
-      const { name, currentPassword, newPassword } = req.body;
+      const {
+        name,
+        currentPassword,
+        newPassword,
+        zone,
+        city,
+        category,
+        platform,
+        vehicleType,
+        freelancerType,
+        latitude,
+        longitude
+      } = req.body;
       const userId = req.user.userId;
 
       const user = await userRepository.findById(userId);
@@ -338,8 +529,8 @@ class AuthController {
 
       const updateData = {};
 
-      if (name && name !== user.name) {
-        updateData.name = name;
+      if (name && name.trim() !== user.name) {
+        updateData.name = name.trim();
       }
 
       if (newPassword) {
@@ -357,6 +548,72 @@ class AuthController {
         }
 
         updateData.password = await bcrypt.hash(newPassword, 10);
+      }
+
+      let nextCategory = user.category;
+      if (category !== undefined) {
+        if (req.user.role !== ROLES.WORKER) {
+          return res.status(403).json({ error: 'Only workers can set category' });
+        }
+
+        if (user.category && category !== user.category) {
+          return res.status(400).json({ error: 'category cannot be changed once selected' });
+        }
+
+        if (!user.category) {
+          nextCategory = category;
+          updateData.category = category;
+        }
+      }
+
+      const workerProfileFieldsProvided =
+        zone !== undefined ||
+        city !== undefined ||
+        platform !== undefined ||
+        vehicleType !== undefined ||
+        freelancerType !== undefined ||
+        latitude !== undefined ||
+        longitude !== undefined;
+
+      if (workerProfileFieldsProvided && req.user.role !== ROLES.WORKER) {
+        return res.status(403).json({ error: 'Only workers can update location, platform and worker type fields' });
+      }
+
+      if (req.user.role === ROLES.WORKER) {
+        if (zone !== undefined) {
+          updateData.zone = this.normalizeOptionalString(zone);
+        }
+
+        if (city !== undefined) {
+          updateData.city = this.normalizeOptionalString(city);
+        }
+
+        if (latitude !== undefined) {
+          updateData.latitude = this.normalizeOptionalNumber(latitude);
+        }
+
+        if (longitude !== undefined) {
+          updateData.longitude = this.normalizeOptionalNumber(longitude);
+        }
+
+        const hasWorkerTypeUpdate =
+          category !== undefined ||
+          platform !== undefined ||
+          vehicleType !== undefined ||
+          freelancerType !== undefined;
+
+        if (hasWorkerTypeUpdate) {
+          const workerUpdateError = this.applyWorkerTypeAndPlatformUpdates(
+            user,
+            { platform, vehicleType, freelancerType },
+            updateData,
+            nextCategory
+          );
+
+          if (workerUpdateError) {
+            return res.status(400).json({ error: workerUpdateError });
+          }
+        }
       }
 
       if (Object.keys(updateData).length === 0) {

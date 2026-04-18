@@ -1,7 +1,89 @@
 const { ROLES } = require('../config/constants');
+const {
+  RIDER_PLATFORMS,
+  FREELANCER_PLATFORMS,
+  ALL_WORKER_PLATFORMS
+} = require('../config/platformOptions');
+
+const WORKER_CATEGORIES = ['rider', 'freelance'];
+const RIDER_VEHICLE_TYPES = ['bike', 'car', 'rickshaw'];
+const FREELANCER_TYPES = ['ui_ux', 'web_development', 'graphic_design', 'content_writing', 'digital_marketing'];
+
+function isProvided(value) {
+  return value !== undefined && value !== null;
+}
+
+function isNonEmptyString(value) {
+  return typeof value === 'string' && value.trim().length > 0;
+}
+
+function isFiniteNumberValue(value) {
+  if (typeof value === 'number') {
+    return Number.isFinite(value);
+  }
+
+  if (typeof value === 'string' && value.trim().length > 0) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed);
+  }
+
+  return false;
+}
+
+function validateWorkerSelectionFields({ category, platform, vehicleType, freelancerType }, { requireCompleteSelection = false } = {}) {
+  if (isProvided(category) && !WORKER_CATEGORIES.includes(category)) {
+    return 'category must be either rider or freelance';
+  }
+
+  if (isProvided(platform) && !ALL_WORKER_PLATFORMS.includes(platform)) {
+    return `platform must be one of ${ALL_WORKER_PLATFORMS.join(', ')}`;
+  }
+
+  if (isProvided(vehicleType) && !RIDER_VEHICLE_TYPES.includes(vehicleType)) {
+    return 'vehicleType must be one of bike, car, rickshaw';
+  }
+
+  if (isProvided(freelancerType) && !FREELANCER_TYPES.includes(freelancerType)) {
+    return 'freelancerType must be one of ui_ux, web_development, graphic_design, content_writing, digital_marketing';
+  }
+
+  if (isProvided(vehicleType) && isProvided(freelancerType)) {
+    return 'Provide either vehicleType or freelancerType, not both';
+  }
+
+  if (category === 'rider') {
+    if (requireCompleteSelection && !isProvided(vehicleType)) {
+      return 'vehicleType is required for rider category';
+    }
+
+    if (isProvided(platform) && !RIDER_PLATFORMS.includes(platform)) {
+      return `For rider category, platform must be one of ${RIDER_PLATFORMS.join(', ')}`;
+    }
+
+    if (isProvided(freelancerType)) {
+      return 'freelancerType is only valid for freelance category';
+    }
+  }
+
+  if (category === 'freelance') {
+    if (requireCompleteSelection && !isProvided(freelancerType)) {
+      return 'freelancerType is required for freelance category';
+    }
+
+    if (isProvided(platform) && !FREELANCER_PLATFORMS.includes(platform)) {
+      return `For freelance category, platform must be one of ${FREELANCER_PLATFORMS.join(', ')}`;
+    }
+
+    if (isProvided(vehicleType)) {
+      return 'vehicleType is only valid for rider category';
+    }
+  }
+
+  return null;
+}
 
 function validateSignup(req, res, next) {
-  const { name, email, password, role } = req.body;
+  const { name, email, password, role, category, platform, vehicleType, freelancerType } = req.body;
 
   if (!name || !email || !password || !role) {
     return res.status(400).json({ error: 'All fields are required' });
@@ -18,6 +100,23 @@ function validateSignup(req, res, next) {
 
   if (password.length < 6) {
     return res.status(400).json({ error: 'Password must be at least 6 characters' });
+  }
+
+  if (role === ROLES.WORKER) {
+    if (!category || !platform) {
+      return res.status(400).json({ error: 'category and platform are required for workers' });
+    }
+
+    const workerSelectionError = validateWorkerSelectionFields(
+      { category, platform, vehicleType, freelancerType },
+      { requireCompleteSelection: true }
+    );
+
+    if (workerSelectionError) {
+      return res.status(400).json({ error: workerSelectionError });
+    }
+  } else if (isProvided(category) || isProvided(platform) || isProvided(vehicleType) || isProvided(freelancerType)) {
+    return res.status(400).json({ error: 'category, platform, vehicleType and freelancerType are only allowed for workers' });
   }
 
   next();
@@ -64,7 +163,7 @@ function validateRefreshToken(req, res, next) {
 }
 
 function validateWorkerProfileUpdate(req, res, next) {
-  const allowedKeys = ['zone', 'city', 'category', 'vehicleType'];
+  const allowedKeys = ['zone', 'city', 'category', 'platform', 'vehicleType', 'freelancerType', 'latitude', 'longitude'];
   const payloadKeys = Object.keys(req.body || {});
 
   if (payloadKeys.length === 0) {
@@ -76,7 +175,7 @@ function validateWorkerProfileUpdate(req, res, next) {
     return res.status(400).json({ error: `Invalid fields: ${invalidKeys.join(', ')}` });
   }
 
-  const { zone, city, category, vehicleType } = req.body;
+  const { zone, city, category, platform, vehicleType, freelancerType, latitude, longitude } = req.body;
 
   if (zone !== undefined && zone !== null && (typeof zone !== 'string' || zone.trim().length === 0)) {
     return res.status(400).json({ error: 'zone must be a non-empty string or null' });
@@ -86,18 +185,139 @@ function validateWorkerProfileUpdate(req, res, next) {
     return res.status(400).json({ error: 'city must be a non-empty string or null' });
   }
 
-  if (category !== undefined && category !== null) {
-    const allowedCategories = ['rider', 'freelance'];
-    if (!allowedCategories.includes(category)) {
-      return res.status(400).json({ error: 'category must be either rider or freelance' });
+  if (latitude !== undefined && latitude !== null) {
+    if (!isFiniteNumberValue(latitude)) {
+      return res.status(400).json({ error: 'latitude must be a valid number between -90 and 90 or null' });
+    }
+
+    const latitudeNumber = Number(latitude);
+    if (latitudeNumber < -90 || latitudeNumber > 90) {
+      return res.status(400).json({ error: 'latitude must be between -90 and 90' });
     }
   }
 
-  if (vehicleType !== undefined && vehicleType !== null) {
-    const allowedVehicleTypes = ['bike', 'car', 'rickshaw'];
-    if (!allowedVehicleTypes.includes(vehicleType)) {
-      return res.status(400).json({ error: 'vehicleType must be one of bike, car, rickshaw' });
+  if (longitude !== undefined && longitude !== null) {
+    if (!isFiniteNumberValue(longitude)) {
+      return res.status(400).json({ error: 'longitude must be a valid number between -180 and 180 or null' });
     }
+
+    const longitudeNumber = Number(longitude);
+    if (longitudeNumber < -180 || longitudeNumber > 180) {
+      return res.status(400).json({ error: 'longitude must be between -180 and 180' });
+    }
+  }
+
+  const workerSelectionError = validateWorkerSelectionFields({
+    category,
+    platform,
+    vehicleType,
+    freelancerType
+  });
+
+  if (workerSelectionError) {
+    return res.status(400).json({ error: workerSelectionError });
+  }
+
+  next();
+}
+
+function validateProfileUpdate(req, res, next) {
+  const allowedKeys = [
+    'name',
+    'currentPassword',
+    'newPassword',
+    'zone',
+    'city',
+    'category',
+    'platform',
+    'vehicleType',
+    'freelancerType',
+    'latitude',
+    'longitude'
+  ];
+
+  const payloadKeys = Object.keys(req.body || {});
+
+  if (payloadKeys.length === 0) {
+    return res.status(400).json({ error: 'At least one field is required for update' });
+  }
+
+  const invalidKeys = payloadKeys.filter((key) => !allowedKeys.includes(key));
+  if (invalidKeys.length > 0) {
+    return res.status(400).json({ error: `Invalid fields: ${invalidKeys.join(', ')}` });
+  }
+
+  const {
+    name,
+    currentPassword,
+    newPassword,
+    zone,
+    city,
+    category,
+    platform,
+    vehicleType,
+    freelancerType,
+    latitude,
+    longitude
+  } = req.body;
+
+  if (name !== undefined && !isNonEmptyString(name)) {
+    return res.status(400).json({ error: 'name must be a non-empty string' });
+  }
+
+  if (newPassword !== undefined) {
+    if (!isNonEmptyString(newPassword) || newPassword.length < 6) {
+      return res.status(400).json({ error: 'newPassword must be at least 6 characters' });
+    }
+
+    if (!isNonEmptyString(currentPassword)) {
+      return res.status(400).json({ error: 'currentPassword is required when changing password' });
+    }
+  }
+
+  if (currentPassword !== undefined && newPassword === undefined) {
+    return res.status(400).json({ error: 'newPassword is required when currentPassword is provided' });
+  }
+
+  if (zone !== undefined && zone !== null && !isNonEmptyString(zone)) {
+    return res.status(400).json({ error: 'zone must be a non-empty string or null' });
+  }
+
+  if (city !== undefined && city !== null && !isNonEmptyString(city)) {
+    return res.status(400).json({ error: 'city must be a non-empty string or null' });
+  }
+
+  if (latitude !== undefined && latitude !== null) {
+    if (!isFiniteNumberValue(latitude)) {
+      return res.status(400).json({ error: 'latitude must be a valid number between -90 and 90 or null' });
+    }
+
+    const latitudeNumber = Number(latitude);
+    if (latitudeNumber < -90 || latitudeNumber > 90) {
+      return res.status(400).json({ error: 'latitude must be between -90 and 90' });
+    }
+  }
+
+  if (longitude !== undefined && longitude !== null) {
+    if (!isFiniteNumberValue(longitude)) {
+      return res.status(400).json({ error: 'longitude must be a valid number between -180 and 180 or null' });
+    }
+
+    const longitudeNumber = Number(longitude);
+    if (longitudeNumber < -180 || longitudeNumber > 180) {
+      return res.status(400).json({ error: 'longitude must be between -180 and 180' });
+    }
+  }
+
+  const workerSelectionError = validateWorkerSelectionFields({
+    category,
+    platform,
+    vehicleType,
+    freelancerType
+  });
+
+  if (workerSelectionError) {
+    return res.status(400).json({ error: workerSelectionError });
   }
 
   next();
@@ -109,5 +329,6 @@ module.exports = {
   validateOTP,
   validateEmail,
   validateRefreshToken,
+  validateProfileUpdate,
   validateWorkerProfileUpdate
 };

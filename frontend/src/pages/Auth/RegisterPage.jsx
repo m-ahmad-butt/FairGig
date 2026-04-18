@@ -1,7 +1,17 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import authService from '../../services/api/authService';
+import {
+  WORKER_ROLE,
+  CATEGORY_OPTIONS,
+  RIDER_TYPE_OPTIONS,
+  FREELANCER_TYPE_OPTIONS,
+  DEFAULT_PLATFORM_CATALOG,
+  getPlatformOptions,
+  getDefaultPlatform,
+  normalizePlatformCatalog
+} from '../../utils/workerProfileOptions';
 
 const ROLES = [
   {
@@ -27,7 +37,7 @@ const ROLES = [
     badge: 'Requires approval'
   },
   {
-    id: 'advocate',
+    id: 'analyst',
     label: 'Advocate',
     icon: (
       <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -41,24 +51,86 @@ const ROLES = [
 
 export default function RegisterPage() {
   const navigate = useNavigate();
+  const [platformCatalog, setPlatformCatalog] = useState(DEFAULT_PLATFORM_CATALOG);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
     password: '',
     confirmPassword: '',
-    role: 'worker'
+    role: WORKER_ROLE,
+    category: 'rider',
+    platform: getDefaultPlatform('rider'),
+    vehicleType: RIDER_TYPE_OPTIONS[0].value,
+    freelancerType: FREELANCER_TYPE_OPTIONS[0].value
   });
   const [loading, setLoading] = useState(false);
 
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadPlatformCatalog() {
+      try {
+        const response = await authService.getPlatforms();
+
+        if (!isMounted) {
+          return;
+        }
+
+        const catalog = normalizePlatformCatalog(response);
+        setPlatformCatalog(catalog);
+      } catch (error) {
+        console.error('Failed to fetch platform options, using fallback:', error);
+      }
+    }
+
+    loadPlatformCatalog();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const platformOptions = useMemo(
+    () => getPlatformOptions(formData.category, platformCatalog),
+    [formData.category, platformCatalog]
+  );
+
+  useEffect(() => {
+    if (formData.role !== WORKER_ROLE) {
+      return;
+    }
+
+    if (platformOptions.some((option) => option.value === formData.platform)) {
+      return;
+    }
+
+    setFormData((prev) => ({
+      ...prev,
+      platform: platformOptions[0]?.value || ''
+    }));
+  }, [formData.role, formData.platform, platformOptions]);
+
   const handleChange = (e) => {
-    setFormData({
-      ...formData,
+    setFormData((prev) => ({
+      ...prev,
       [e.target.name]: e.target.value
-    });
+    }));
   };
 
   const handleRoleSelect = (roleId) => {
-    setFormData({ ...formData, role: roleId });
+    setFormData((prev) => ({ ...prev, role: roleId }));
+  };
+
+  const handleCategoryChange = (category) => {
+    const nextPlatformOptions = getPlatformOptions(category, platformCatalog);
+
+    setFormData((prev) => ({
+      ...prev,
+      category,
+      platform: nextPlatformOptions[0]?.value || '',
+      vehicleType: RIDER_TYPE_OPTIONS[0].value,
+      freelancerType: FREELANCER_TYPE_OPTIONS[0].value
+    }));
   };
 
   const handleSubmit = async (e) => {
@@ -74,20 +146,54 @@ export default function RegisterPage() {
       return;
     }
 
+    if (formData.role === WORKER_ROLE) {
+      if (!formData.category || !formData.platform) {
+        toast.error('Please select worker category and platform');
+        return;
+      }
+
+      if (formData.category === 'rider' && !formData.vehicleType) {
+        toast.error('Please select vehicle type for rider category');
+        return;
+      }
+
+      if (formData.category === 'freelance' && !formData.freelancerType) {
+        toast.error('Please select freelancer type');
+        return;
+      }
+    }
+
     setLoading(true);
 
     try {
-      const { name, email, password, role } = formData;
-      const result = await authService.signup({ name, email, password, role });
-      
+      const { name, email, password, role, category, platform, vehicleType, freelancerType } = formData;
+      const payload = { name, email, password, role };
+
+      if (role === WORKER_ROLE) {
+        payload.category = category;
+        payload.platform = platform;
+
+        if (category === 'rider') {
+          payload.vehicleType = vehicleType;
+        }
+
+        if (category === 'freelance') {
+          payload.freelancerType = freelancerType;
+        }
+      }
+
+      const result = await authService.signup(payload);
+
       toast.success(result.message);
-      navigate('/onboarding', { state: { email, role } });
+      navigate('/verify-otp', { state: { email, role } });
     } catch (error) {
       toast.error(error.message);
     } finally {
       setLoading(false);
     }
   };
+
+  const typeOptions = formData.category === 'rider' ? RIDER_TYPE_OPTIONS : FREELANCER_TYPE_OPTIONS;
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-white px-4 py-12">
@@ -101,7 +207,7 @@ export default function RegisterPage() {
           <h2 className="text-2xl font-bold text-gray-900">Create your account</h2>
           <p className="mt-2 text-gray-600">Join FairGig</p>
         </div>
-        
+
         <form className="space-y-5" onSubmit={handleSubmit}>
           <div>
             <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
@@ -174,6 +280,92 @@ export default function RegisterPage() {
               ))}
             </div>
           </div>
+
+          {formData.role === WORKER_ROLE && (
+            <>
+              <div className="space-y-3">
+                <label className="block text-sm font-medium text-gray-700">
+                  Worker Category
+                </label>
+
+                <div className="grid grid-cols-2 gap-3">
+                  {CATEGORY_OPTIONS.map((categoryOption) => (
+                    <button
+                      key={categoryOption.value}
+                      type="button"
+                      onClick={() => handleCategoryChange(categoryOption.value)}
+                      className={`rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
+                        formData.category === categoryOption.value
+                          ? 'border-black bg-black text-white'
+                          : 'border-gray-200 text-gray-700 hover:border-gray-300'
+                      }`}
+                    >
+                      {categoryOption.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label htmlFor="platform" className="block text-sm font-medium text-gray-700 mb-1">
+                  Platform
+                </label>
+                <select
+                  id="platform"
+                  name="platform"
+                  value={formData.platform}
+                  onChange={handleChange}
+                  className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent transition-all bg-white"
+                >
+                  {platformOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {formData.category === 'rider' ? (
+                <div>
+                  <label htmlFor="vehicleType" className="block text-sm font-medium text-gray-700 mb-1">
+                    Vehicle Type
+                  </label>
+                  <select
+                    id="vehicleType"
+                    name="vehicleType"
+                    value={formData.vehicleType}
+                    onChange={handleChange}
+                    className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent transition-all bg-white"
+                  >
+                    {typeOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : (
+                <div>
+                  <label htmlFor="freelancerType" className="block text-sm font-medium text-gray-700 mb-1">
+                    Freelancer Type
+                  </label>
+                  <select
+                    id="freelancerType"
+                    name="freelancerType"
+                    value={formData.freelancerType}
+                    onChange={handleChange}
+                    className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent transition-all bg-white"
+                  >
+                    {typeOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </>
+          )}
 
           <div>
             <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">

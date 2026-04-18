@@ -7,8 +7,13 @@ from fastapi import FastAPI, Header, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from pymongo import MongoClient
 
-GLOBAL_ENV_PATH = Path(__file__).resolve().parents[3] / '.env'
-load_dotenv(GLOBAL_ENV_PATH)
+for parent in Path(__file__).resolve().parents:
+    candidate = parent / '.env'
+    if candidate.exists():
+        load_dotenv(candidate)
+        break
+else:
+    load_dotenv()
 
 service_name = os.getenv('SERVICE_NAME', 'shared-agent-service')
 port = int(os.getenv('PORT', os.getenv('SHARED_AGENT_SERVICE_PORT', '4005')))

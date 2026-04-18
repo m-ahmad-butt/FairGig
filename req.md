@@ -21,4 +21,3 @@ Technical constraints ● The anomaly detection service must be Python FastAPI. 
 ● The anomaly service must expose its detection logic as a documented API endpoint, judges will call it directly with a crafted payload.
 ● All inter-service API contracts must be documented, a simple table or Postman collection is sufficient.
 ● The income certificate page must be print-friendly.
-
