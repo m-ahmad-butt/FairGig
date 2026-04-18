@@ -10,6 +10,7 @@ import OnboardingPage from './pages/Auth/OnboardingPage';
 import WorkerDashboard from './pages/Dashboard/WorkerDashboard';
 import VerifierDashboard from './pages/Dashboard/VerifierDashboard';
 import VerificationDetail from './pages/Dashboard/VerificationDetail';
+import AdvocateDashboard from './pages/Dashboard/AdvocateDashboard';
 import AdminDashboard from './pages/Admin/AdminDashboard';
 import ProfilePage from './pages/Profile/ProfilePage';
 import WorkerCommunityPage from './pages/Community/WorkerCommunityPage';
@@ -42,6 +43,8 @@ function App() {
         <Route path="/worker/community" element={<WorkerCommunityPage />} />
         <Route path="/verifier/dashboard" element={<VerifierDashboard />} />
         <Route path="/verifier/verification/:id" element={<VerificationDetail />} />
+        <Route path="/analyst/dashboard" element={<AdvocateDashboard />} />
+        <Route path="/advocate/dashboard" element={<AdvocateDashboard />} />
         <Route path="/admin/dashboard" element={<AdminDashboard />} />
 
         <Route path="*" element={<Navigate to="/" replace />} />

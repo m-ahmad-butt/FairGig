@@ -145,6 +145,28 @@ class EarningsService {
     return result;
   }
 
+  async uploadEvidenceFile(sessionId, file, workerId) {
+    const formData = new FormData();
+    formData.append('session_id', sessionId);
+    if (workerId) {
+      formData.append('worker_id', workerId);
+    }
+    formData.append('image', file);
+
+    const response = await fetch(`${API_URL}/evidence/upload`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: formData
+    });
+
+    const result = await response.json();
+    if (!response.ok) {
+      throw new Error(result.error || 'Failed to upload evidence image');
+    }
+
+    return result;
+  }
+
   // Get earnings by worker
   async getEarningsByWorker(workerId) {
     const response = await fetch(`${API_URL}/earnings?worker_id=${workerId}`, {
@@ -154,6 +176,18 @@ class EarningsService {
     const result = await response.json();
     if (!response.ok) {
       throw new Error(result.error || 'Failed to get earnings');
+    }
+    return result;
+  }
+
+  async getAllEarnings() {
+    const response = await fetch(`${API_URL}/earnings`, {
+      headers: getAuthHeaders()
+    });
+
+    const result = await response.json();
+    if (!response.ok) {
+      throw new Error(result.error || 'Failed to get all earnings');
     }
     return result;
   }

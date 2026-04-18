@@ -48,6 +48,8 @@
       context: ./earnings-service
       dockerfile: Dockerfile
     container_name: earnings-service
+    env_file:
+      - ../.env
     environment:
       - DATABASE_URL=mongodb://earnings-mongo:27017/earnings_service?replicaSet=rs0
     ports:

@@ -3,6 +3,7 @@ const workSessionRepository = require('../repositories/workSessionRepository');
 const { sendBadRequest, sendNotFound } = require('../utils/response');
 const { serializeEarning } = require('../utils/serializer');
 const { triggerAnomalyDetection } = require('../utils/anomalyServiceClient');
+const { createEvidenceUploadUrls, uploadEvidenceBuffer } = require('../utils/evidenceUploadService');
 
 const AUTH_SERVICE_BASE_URL = process.env.AUTH_SERVICE_URL || 'http://auth-service:4001';
 
@@ -38,10 +39,89 @@ async function fetchWorkerFromAuthService(workerId) {
 }
 
 class EvidenceController {
+  async uploadEvidenceBinary(req, res) {
+    try {
+      const { session_id, worker_id } = req.body || {};
+
+      if (!session_id) {
+        return sendBadRequest(res, 'session_id is required');
+      }
+
+      if (!req.file) {
+        return sendBadRequest(res, 'image file is required');
+      }
+
+      const session = await workSessionRepository.findById(session_id);
+      if (!session) {
+        return sendNotFound(res, 'Work session not found for provided session_id');
+      }
+
+      if (worker_id && worker_id !== session.worker_id) {
+        return sendBadRequest(res, 'worker_id must match the owner of the provided session_id');
+      }
+
+      const uploaded = await uploadEvidenceBuffer({
+        sessionId: session_id,
+        workerId: session.worker_id,
+        fileType: req.file.mimetype,
+        buffer: req.file.buffer
+      });
+
+      return res.json({
+        ...uploaded,
+        fileType: req.file.mimetype,
+        fileSize: req.file.size
+      });
+    } catch (error) {
+      if (error?.code === 'VALIDATION_ERROR') {
+        return sendBadRequest(res, error.message);
+      }
+
+      if (error?.code === 'CONFIG_ERROR') {
+        return res.status(500).json({ error: error.message });
+      }
+
+      console.error('Upload evidence image error:', error);
+      return res.status(500).json({ error: 'Failed to upload evidence image' });
+    }
+  }
+
   async getPresignedUrl(req, res) {
-    return res.status(501).json({
-      error: 'Presigned evidence upload is not configured for this deployment'
-    });
+    try {
+      const { session_id, file_type } = req.query;
+
+      if (!session_id) {
+        return sendBadRequest(res, 'session_id query param is required');
+      }
+
+      if (!file_type) {
+        return sendBadRequest(res, 'file_type query param is required');
+      }
+
+      const session = await workSessionRepository.findById(session_id);
+      if (!session) {
+        return sendNotFound(res, 'Work session not found for provided session_id');
+      }
+
+      const signedUpload = await createEvidenceUploadUrls({
+        sessionId: session_id,
+        workerId: session.worker_id,
+        fileType: file_type
+      });
+
+      return res.json(signedUpload);
+    } catch (error) {
+      if (error?.code === 'VALIDATION_ERROR') {
+        return sendBadRequest(res, error.message);
+      }
+
+      if (error?.code === 'CONFIG_ERROR') {
+        return res.status(500).json({ error: error.message });
+      }
+
+      console.error('Generate evidence presigned URL error:', error);
+      return res.status(500).json({ error: 'Failed to generate presigned upload URL' });
+    }
   }
 
   async create(req, res) {

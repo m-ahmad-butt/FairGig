@@ -131,6 +131,19 @@ class AuthService {
     return result;
   }
 
+  async getOnPlatformWorkers(workerId) {
+    const query = workerId ? `?worker_id=${encodeURIComponent(workerId)}` : '';
+
+    const response = await fetch(`${API_URL}/workers/on-platform${query}`);
+    const result = await response.json();
+
+    if (!response.ok) {
+      throw new Error(result.error || 'Failed to fetch on-platform workers');
+    }
+
+    return result;
+  }
+
   async refreshToken() {
     const refreshToken = localStorage.getItem('refreshToken');
 

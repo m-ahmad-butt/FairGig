@@ -178,28 +178,6 @@ export default function SingleSessionEntry({ onComplete }) {
     setEvidencePreview(URL.createObjectURL(file));
   };
 
-  const uploadToS3 = async (uploadUrl, file) => {
-    return new Promise((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
-      xhr.open('PUT', uploadUrl);
-      xhr.setRequestHeader('Content-Type', file.type);
-      
-      xhr.upload.onprogress = (e) => {
-        if (e.lengthComputable) {
-          setUploadProgress(Math.round((e.loaded / e.total) * 100));
-        }
-      };
-      
-      xhr.onload = () => {
-        if (xhr.status === 200) resolve();
-        else reject(new Error('S3 upload failed'));
-      };
-      
-      xhr.onerror = () => reject(new Error('S3 upload failed'));
-      xhr.send(file);
-    });
-  };
-
   const handleSubmitCard2 = async () => {
     if (!workerId) {
       toast.error('Unable to identify worker. Please login again.');
@@ -215,19 +193,22 @@ export default function SingleSessionEntry({ onComplete }) {
     setUploadProgress(0);
     
     try {
-      const { uploadUrl, imageUrl } = await earningsService.getPresignedUrl(sessionId, evidenceFile.type);
-      await uploadToS3(uploadUrl, evidenceFile);
+      setUploadProgress(20);
+
+      const uploadResult = await earningsService.uploadEvidenceFile(sessionId, evidenceFile, workerId);
+      setUploadProgress(80);
       
       await earningsService.createEvidence({
         worker_id: workerId,
         session_id: sessionId,
-        image_url: imageUrl
+        image_url: uploadResult.imageUrl
       });
+
+      setUploadProgress(100);
       
       onComplete?.(sessionId);
     } catch (error) {
-      toast.success('Image upload unavailable. Session completed without screenshot.');
-      onComplete?.(sessionId);
+      toast.error(error.message || 'Image upload failed. Retry or remove image to continue without screenshot.');
     } finally {
       setLoading(false);
       setUploadProgress(0);
