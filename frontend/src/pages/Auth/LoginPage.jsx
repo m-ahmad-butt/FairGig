@@ -30,14 +30,8 @@ export default function LoginPage() {
       // Redirect based on role
       if (result.user.email === 'l233059@lhr.nu.edu.pk') {
         navigate('/admin/dashboard');
-      } else if (result.user.role === 'worker') {
-        navigate('/worker/dashboard');
-      } else if (result.user.role === 'verifier') {
-        navigate('/verifier/dashboard');
-      } else if (result.user.role === 'analyst') {
-        navigate('/analyst/dashboard');
       } else {
-        navigate('/dashboard');
+        navigate('/profile');
       }
     } catch (error) {
       toast.error(error.message);
