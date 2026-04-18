@@ -168,6 +168,9 @@ class AuthController {
 
       const refreshToken = tokenService.generateRefreshToken({ userId: user.id });
 
+      // Delete old refresh tokens for this user before creating a new one
+      await refreshTokenRepository.deleteByUserId(user.id);
+
       await refreshTokenRepository.create({
         userId: user.id,
         token: refreshToken,
@@ -318,6 +321,58 @@ class AuthController {
       res.json({ message: 'Logged out successfully' });
     } catch (error) {
       console.error('Logout error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+
+  async updateProfile(req, res) {
+    try {
+      const { name, currentPassword, newPassword } = req.body;
+      const userId = req.user.userId;
+
+      const user = await userRepository.findById(userId);
+
+      if (!user) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+
+      const updateData = {};
+
+      if (name && name !== user.name) {
+        updateData.name = name;
+      }
+
+      if (newPassword) {
+        if (!currentPassword) {
+          return res.status(400).json({ error: 'Current password is required' });
+        }
+
+        const validPassword = await bcrypt.compare(currentPassword, user.password);
+        if (!validPassword) {
+          return res.status(401).json({ error: 'Current password is incorrect' });
+        }
+
+        if (newPassword.length < 6) {
+          return res.status(400).json({ error: 'New password must be at least 6 characters' });
+        }
+
+        updateData.password = await bcrypt.hash(newPassword, 10);
+      }
+
+      if (Object.keys(updateData).length === 0) {
+        return res.status(400).json({ error: 'No changes to update' });
+      }
+
+      await userRepository.update(userId, updateData);
+
+      const updatedUser = await userRepository.getUserProfile(userId);
+
+      res.json({
+        message: 'Profile updated successfully',
+        user: updatedUser
+      });
+    } catch (error) {
+      console.error('Update profile error:', error);
       res.status(500).json({ error: 'Internal server error' });
     }
   }

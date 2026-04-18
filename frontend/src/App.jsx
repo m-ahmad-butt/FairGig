@@ -8,6 +8,7 @@ import VerifyOtpPage from './pages/Auth/VerifyOtpPage';
 import PendingApprovalPage from './pages/Auth/PendingApprovalPage';
 import DashboardPage from './pages/Dashboard/DashboardPage';
 import AdminDashboard from './pages/Admin/AdminDashboard';
+import ProfilePage from './pages/Profile/ProfilePage';
 
 function App() {
   return (
@@ -23,6 +24,10 @@ function App() {
         
         {/* Dashboards */}
         <Route path="/dashboard" element={<DashboardPage />} />
+        <Route path="/profile" element={<ProfilePage />} />
+        <Route path="/worker/profile" element={<ProfilePage />} />
+        <Route path="/verifier/profile" element={<ProfilePage />} />
+        <Route path="/analyst/profile" element={<ProfilePage />} />
         <Route path="/worker/dashboard" element={<DashboardPage />} />
         <Route path="/verifier/dashboard" element={<DashboardPage />} />
         <Route path="/analyst/dashboard" element={<DashboardPage />} />
