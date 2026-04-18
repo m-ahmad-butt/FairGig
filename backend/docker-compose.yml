@@ -26,6 +26,7 @@
       - DATABASE_URL=mongodb://auth-mongo:27017/auth_service?replicaSet=rs0
       - PORT=4001
       - SERVICE_NAME=auth-service
+      - AUTH_SERVICE_URL=${AUTH_SERVICE_URL}
     ports:
       - '4001:4001'
     depends_on:
