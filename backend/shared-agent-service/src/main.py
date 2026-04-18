@@ -45,7 +45,8 @@ screenshot_verifier_service = None
 if screenshot_verifier_agent is not None:
     screenshot_verifier_service = ScreenshotVerifierService(
         repository=verification_repository,
-        verifier_agent=screenshot_verifier_agent
+        verifier_agent=screenshot_verifier_agent,
+        anomaly_confidence_threshold=settings.screenshot_anomaly_confidence_threshold
     )
 
 

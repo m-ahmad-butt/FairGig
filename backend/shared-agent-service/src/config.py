@@ -17,6 +17,7 @@ class Settings:
     groq_agent_model: str
     request_timeout_seconds: int
     verification_collection: str
+    screenshot_anomaly_confidence_threshold: float
 
 
 def load_environment() -> None:
@@ -61,6 +62,9 @@ def get_settings() -> Settings:
         'SCREENSHOT_VERIFICATION_COLLECTION',
         'ai_screenshot_verifications'
     )
+    screenshot_anomaly_confidence_threshold = float(
+        os.getenv('SCREENSHOT_ANOMALY_CONFIDENCE_THRESHOLD', '80')
+    )
 
     return Settings(
         service_name=service_name,
@@ -72,5 +76,6 @@ def get_settings() -> Settings:
         groq_vision_model=groq_vision_model,
         groq_agent_model=groq_agent_model,
         request_timeout_seconds=request_timeout_seconds,
-        verification_collection=verification_collection
+        verification_collection=verification_collection,
+        screenshot_anomaly_confidence_threshold=screenshot_anomaly_confidence_threshold
     )

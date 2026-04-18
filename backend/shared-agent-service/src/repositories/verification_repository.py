@@ -47,7 +47,10 @@ class ScreenshotVerificationRepository:
         net_amount: float,
         confidence_score: float,
         extracted_payload: dict[str, Any],
-        actual_payload: dict[str, Any]
+        actual_payload: dict[str, Any],
+        anomaly_detected: bool,
+        anomaly_types: list[str],
+        anomaly_confidence_threshold: float
     ) -> dict[str, Any]:
         self._ensure_indexes()
 
@@ -61,6 +64,9 @@ class ScreenshotVerificationRepository:
             'platform_deduction': platform_deduction,
             'net_amount': net_amount,
             'confidence_score': confidence_score,
+            'anomaly_detected': anomaly_detected,
+            'anomaly_types': anomaly_types,
+            'anomaly_confidence_threshold': anomaly_confidence_threshold,
             'extracted_payload': extracted_payload,
             'actual_payload': actual_payload,
             'updated_at': now

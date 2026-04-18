@@ -29,12 +29,33 @@ This endpoint:
 2. Uses LangChain ReAct agent + Groq vision model to extract receipt fields.
 3. Handles missing platform deduction by treating it as 0.
 4. Computes and returns a confidence score.
-5. Stores result in MongoDB and reuses cached evaluation for the same worker_id/session_id.
+5. Flags anomalies when confidence_score is below configured threshold.
+6. Returns anomaly types in response.
+7. Stores result in MongoDB and reuses cached evaluation for the same worker_id/session_id.
+
+Response fields now include:
+
+- confidence_score (0 to 100)
+- anomaly_detected (boolean)
+- anomaly_types (list of anomaly codes)
+- anomaly_confidence_threshold (threshold used during evaluation)
+
+Anomaly types may include:
+
+- LOW_CONFIDENCE_VERIFICATION
+- PLATFORM_NAME_MISMATCH
+- GROSS_AMOUNT_MISMATCH
+- PLATFORM_DEDUCTION_MISMATCH
+- NET_AMOUNT_MISMATCH
 
 Required env values:
 
 - GROQ_API or GROQ_API_KEY
 - EARNINGS_SERVICE_URL (optional; defaults to internal service URL)
+
+Optional tuning:
+
+- SCREENSHOT_ANOMALY_CONFIDENCE_THRESHOLD (default: 80)
 
 ## Local Docker Compose
 

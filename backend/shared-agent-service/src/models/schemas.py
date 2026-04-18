@@ -69,6 +69,9 @@ class ScreenshotVerificationResponse(BaseModel):
     session_id: str
     image_url: str
     confidence_score: float = Field(ge=0, le=100)
+    anomaly_detected: bool = False
+    anomaly_types: list[str] = Field(default_factory=list)
+    anomaly_confidence_threshold: float = Field(default=80.0, ge=0, le=100)
     data_from_picture: ReceiptExtraction
     actual_data: ActualEarningData
     cached: bool

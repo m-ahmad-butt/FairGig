@@ -24,6 +24,9 @@ model ScreenshotVerification {
   platform_deduction  Float    @default(0)
   net_amount          Float
   confidence_score    Float
+  anomaly_detected    Boolean  @default(false)
+  anomaly_types       Json
+  anomaly_confidence_threshold Float @default(80)
   extracted_payload   Json
   actual_payload      Json
   created_at          DateTime @default(now())
