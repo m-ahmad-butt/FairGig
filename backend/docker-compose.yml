@@ -20,8 +20,12 @@
       context: ./auth-service
       dockerfile: Dockerfile
     container_name: auth-service
+    env_file:
+      - ../.env
     environment:
       - DATABASE_URL=mongodb://auth-mongo:27017/auth_service?replicaSet=rs0
+      - PORT=4001
+      - SERVICE_NAME=auth-service
     ports:
       - '4001:4001'
     depends_on:
@@ -129,10 +133,12 @@
       - ME_CONFIG_MONGODB_SERVER=auth-mongo
       - ME_CONFIG_MONGODB_PORT=27017
       - ME_CONFIG_BASICAUTH=false
+      - ME_CONFIG_MONGODB_ENABLE_ADMIN=true
     ports:
       - '8081:8081'
     depends_on:
-      - auth-mongo
+      auth-mongo:
+        condition: service_healthy
 
   earnings-mongo:
     image: mongo:7

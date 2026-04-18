@@ -1,0 +1,132 @@
+EMAIL SETUP GUIDE FOR AUTH SERVICE
+===================================
+
+OPTION 1: Gmail (Recommended for Testing)
+------------------------------------------
+
+1. Go to your Google Account: https://myaccount.google.com/
+
+2. Enable 2-Step Verification:
+   - Go to Security > 2-Step Verification
+   - Follow the steps to enable it
+
+3. Generate App Password:
+   - Go to Security > 2-Step Verification > App passwords
+   - Or directly: https://myaccount.google.com/apppasswords
+   - Select "Mail" and "Other (Custom name)"
+   - Name it "FairGig Auth Service"
+   - Click "Generate"
+   - Copy the 16-character password (remove spaces)
+
+4. Update .env file:
+   SMTP_HOST=smtp.gmail.com
+   SMTP_PORT=587
+   SMTP_USER=your-email@gmail.com
+   SMTP_PASS=xxxx xxxx xxxx xxxx  (the app password you generated)
+
+5. Restart the auth service
+
+
+OPTION 2: Outlook/Hotmail
+--------------------------
+
+1. Update .env file:
+   SMTP_HOST=smtp-mail.outlook.com
+   SMTP_PORT=587
+   SMTP_USER=your-email@outlook.com
+   SMTP_PASS=your-password
+
+2. Restart the auth service
+
+
+OPTION 3: SendGrid (Production Recommended)
+--------------------------------------------
+
+1. Sign up at https://sendgrid.com/ (Free tier: 100 emails/day)
+
+2. Create API Key:
+   - Go to Settings > API Keys
+   - Create API Key with "Mail Send" permission
+   - Copy the API key
+
+3. Update .env file:
+   SMTP_HOST=smtp.sendgrid.net
+   SMTP_PORT=587
+   SMTP_USER=apikey
+   SMTP_PASS=your-sendgrid-api-key
+
+4. Restart the auth service
+
+
+OPTION 4: Mailtrap (Testing Only)
+----------------------------------
+
+1. Sign up at https://mailtrap.io/ (Free for testing)
+
+2. Get SMTP credentials from your inbox
+
+3. Update .env file:
+   SMTP_HOST=smtp.mailtrap.io
+   SMTP_PORT=2525
+   SMTP_USER=your-mailtrap-username
+   SMTP_PASS=your-mailtrap-password
+
+4. Restart the auth service
+
+Note: Mailtrap doesn't send real emails, it captures them for testing
+
+
+TESTING
+-------
+
+1. Update backend/auth-service/.env with your SMTP settings
+
+2. Restart the service:
+   cd backend/auth-service
+   npm run dev
+
+3. Register a new user from the frontend
+
+4. Check your email inbox for the OTP
+
+5. If using Mailtrap, check the Mailtrap inbox
+
+
+TROUBLESHOOTING
+---------------
+
+1. "Invalid login" error:
+   - For Gmail: Make sure you're using App Password, not regular password
+   - Enable 2-Step Verification first
+
+2. "Connection timeout":
+   - Check if your firewall is blocking port 587
+   - Try port 465 with secure: true
+
+3. Emails not received:
+   - Check spam/junk folder
+   - Verify SMTP credentials are correct
+   - Check service logs for errors
+
+4. For Docker:
+   - Update backend/docker-compose.yml to include SMTP env vars
+   - Or create .env file and reference it in docker-compose
+
+
+DOCKER CONFIGURATION
+--------------------
+
+Add to backend/docker-compose.yml under auth-service:
+
+  auth-service:
+    environment:
+      - SMTP_HOST=smtp.gmail.com
+      - SMTP_PORT=587
+      - SMTP_USER=your-email@gmail.com
+      - SMTP_PASS=your-app-password
+
+Or use env_file:
+
+  auth-service:
+    env_file:
+      - ./auth-service/.env

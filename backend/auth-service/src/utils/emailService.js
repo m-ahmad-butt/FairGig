@@ -44,14 +44,35 @@ class EmailService {
   }
 
   async sendAdminApprovalNotification(adminEmail, user) {
+    const approvalToken = Buffer.from(user.id).toString('base64');
+    const approvalUrl = `${process.env.AUTH_SERVICE_URL || 'http://localhost:4001'}/api/auth/admin/approve/${approvalToken}`;
+    
     const subject = 'New User Approval Required - FairGig';
     const html = `
-      <h2>New User Registration</h2>
-      <p>A new ${user.role} has registered and verified their email:</p>
-      <p><strong>Name:</strong> ${user.name}</p>
-      <p><strong>Email:</strong> ${user.email}</p>
-      <p><strong>Role:</strong> ${user.role}</p>
-      <p>Please review and approve this user.</p>
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #333;">New User Registration</h2>
+        <p>A new ${user.role} has registered and verified their email:</p>
+        
+        <div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px; margin: 20px 0;">
+          <p style="margin: 5px 0;"><strong>Name:</strong> ${user.name}</p>
+          <p style="margin: 5px 0;"><strong>Email:</strong> ${user.email}</p>
+          <p style="margin: 5px 0;"><strong>Role:</strong> ${user.role}</p>
+        </div>
+        
+        <p>Click the button below to approve this user:</p>
+        
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${approvalUrl}" 
+             style="background-color: #28a745; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block; font-weight: bold;">
+            Verify Now
+          </a>
+        </div>
+        
+        <p style="color: #666; font-size: 12px;">
+          Or copy and paste this link in your browser:<br>
+          <a href="${approvalUrl}">${approvalUrl}</a>
+        </p>
+      </div>
     `;
     return this.sendEmail(adminEmail, subject, html);
   }
