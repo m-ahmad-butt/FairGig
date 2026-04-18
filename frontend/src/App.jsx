@@ -9,6 +9,7 @@ import PendingApprovalPage from './pages/Auth/PendingApprovalPage';
 import DashboardPage from './pages/Dashboard/DashboardPage';
 import AdminDashboard from './pages/Admin/AdminDashboard';
 import ProfilePage from './pages/Profile/ProfilePage';
+import WorkerCommunityPage from './pages/Community/WorkerCommunityPage';
 
 function App() {
   return (
@@ -29,6 +30,7 @@ function App() {
         <Route path="/verifier/profile" element={<ProfilePage />} />
         <Route path="/analyst/profile" element={<ProfilePage />} />
         <Route path="/worker/dashboard" element={<DashboardPage />} />
+        <Route path="/worker/community" element={<WorkerCommunityPage />} />
         <Route path="/verifier/dashboard" element={<DashboardPage />} />
         <Route path="/analyst/dashboard" element={<DashboardPage />} />
         <Route path="/admin/dashboard" element={<AdminDashboard />} />

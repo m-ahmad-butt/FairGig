@@ -1,9 +1,35 @@
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import authService from '../../services/api/authService';
 
 export default function Navbar({ user }) {
   const navigate = useNavigate();
+  const location = useLocation();
+
+  const dashboardPath =
+    user?.role === 'admin'
+      ? '/admin/dashboard'
+      : user?.role === 'worker'
+        ? '/worker/dashboard'
+        : user?.role === 'verifier'
+          ? '/verifier/dashboard'
+          : '/analyst/dashboard';
+
+  const profilePath =
+    user?.role === 'worker'
+      ? '/worker/profile'
+      : user?.role === 'verifier'
+        ? '/verifier/profile'
+        : '/analyst/profile';
+
+  const navItems = [
+    { to: dashboardPath, label: 'Dashboard' },
+    { to: profilePath, label: 'Profile' }
+  ];
+
+  if (user?.role === 'worker') {
+    navItems.push({ to: '/worker/community', label: 'Community' });
+  }
 
   const handleLogout = async () => {
     await authService.logout();
@@ -16,23 +42,24 @@ export default function Navbar({ user }) {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-16">
           <div className="flex items-center space-x-8">
-            <Link to="/dashboard" className="text-xl font-bold text-gray-900">
+            <Link to={dashboardPath} className="text-xl font-bold text-gray-900">
               FairGig
             </Link>
             
             <div className="hidden md:flex space-x-4">
-              <Link
-                to="/dashboard"
-                className="text-gray-700 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
-              >
-                Dashboard
-              </Link>
-              <Link
-                to="/profile"
-                className="text-gray-700 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
-              >
-                Profile
-              </Link>
+              {navItems.map((item) => (
+                <Link
+                  key={item.to}
+                  to={item.to}
+                  className={`px-3 py-2 rounded-md text-sm font-medium ${
+                    location.pathname === item.to
+                      ? 'bg-gray-100 text-gray-900'
+                      : 'text-gray-700 hover:text-gray-900'
+                  }`}
+                >
+                  {item.label}
+                </Link>
+              ))}
             </div>
           </div>
           

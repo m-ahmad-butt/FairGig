@@ -13,3 +13,66 @@ model HealthPing {
   service   String
   createdAt DateTime @default(now())
 }
+
+model CommunityPost {
+  id               String             @id @default(auto()) @map("_id") @db.ObjectId
+  author_id        String
+  author_alias     String
+  title            String
+  description      String
+  platform         String
+  issue            String
+  image_url        String?
+  status           CommunityPostStatus @default(pending)
+  moderation_note  String?
+  moderated_by     String?
+  moderated_at     DateTime?
+  created_at       DateTime           @default(now())
+  updated_at       DateTime           @updatedAt
+  comments         CommunityComment[]
+  votes            CommunityVote[]
+
+  @@index([author_id])
+  @@index([status])
+  @@map("community_posts")
+}
+
+model CommunityComment {
+  id           String        @id @default(auto()) @map("_id") @db.ObjectId
+  post_id      String        @db.ObjectId
+  author_id    String
+  author_alias String
+  content      String
+  created_at   DateTime      @default(now())
+  updated_at   DateTime      @updatedAt
+  post         CommunityPost @relation(fields: [post_id], references: [id])
+
+  @@index([post_id])
+  @@index([author_id])
+  @@map("community_comments")
+}
+
+model CommunityVote {
+  id         String        @id @default(auto()) @map("_id") @db.ObjectId
+  post_id    String        @db.ObjectId
+  worker_id  String
+  direction  VoteDirection
+  created_at DateTime      @default(now())
+  updated_at DateTime      @updatedAt
+  post       CommunityPost @relation(fields: [post_id], references: [id])
+
+  @@unique([post_id, worker_id])
+  @@index([worker_id])
+  @@map("community_votes")
+}
+
+enum CommunityPostStatus {
+  pending
+  approved
+  rejected
+}
+
+enum VoteDirection {
+  up
+  down
+}
