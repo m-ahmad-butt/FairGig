@@ -62,7 +62,7 @@ def get_settings() -> Settings:
         or 'http://auth-service:4001'
     )
 
-    groq_api_key = os.getenv('GROQ_API_KEY') or os.getenv('GROQ_API', '')
+    groq_api_key = os.getenv('GROQ_API', '')
     groq_model = os.getenv('GROQ_ANOMALY_MODEL', 'llama-3.1-70b-versatile')
 
     request_timeout_seconds = int(os.getenv('AGENT_HTTP_TIMEOUT_SECONDS', '15'))

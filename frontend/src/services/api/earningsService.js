@@ -294,6 +294,19 @@ class EarningsService {
     }
     return result;
   }
+
+  // Anomaly detection service
+  async getWorkerAnomalies(workerId, limit = 20) {
+    const response = await fetch(`${GATEWAY_API_BASE}/anomaly/anomalies/worker/${workerId}?limit=${limit}`, {
+      headers: getAuthHeaders()
+    });
+
+    const result = await response.json();
+    if (!response.ok) {
+      throw new Error(result.detail || result.error || 'Failed to get worker anomalies');
+    }
+    return result;
+  }
 }
 
 export default new EarningsService();

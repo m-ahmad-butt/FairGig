@@ -314,6 +314,7 @@ export default function BulkCSVImport({ onComplete }) {
         const hoursWorked = (endMins - startMins) / 60;
         
         return {
+          session_id: crypto.randomUUID(),
           worker_id: workerId,
           platform: row.platform.trim(),
           session_date: row.session_date.trim(),
@@ -335,6 +336,7 @@ export default function BulkCSVImport({ onComplete }) {
         const platformDeductions = parseFloat(row.platform_deductions) || 0;
         
         return {
+          worker_id: workerId,
           session_id: session.id,
           gross_earned: grossEarned,
           platform_deductions: platformDeductions,
@@ -351,13 +353,12 @@ export default function BulkCSVImport({ onComplete }) {
         
         if (file && session) {
           try {
-            const { uploadUrl, imageUrl } = await earningsService.getPresignedUrl(session.id, file.type);
-            await uploadToS3(uploadUrl, file);
+            const uploadResult = await earningsService.uploadEvidenceFile(session.id, file, workerId);
             
             await earningsService.createEvidence({
               worker_id: workerId,
               session_id: session.id,
-              image_url: imageUrl
+              image_url: uploadResult.imageUrl
             });
             
             resultsArr.push({ row: i + 1, status: 'created', platform: row.platform, date: row.session_date });

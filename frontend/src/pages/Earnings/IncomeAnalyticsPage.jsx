@@ -291,7 +291,7 @@ export default function IncomeAnalyticsPage() {
     cutoff.setHours(0, 0, 0, 0);
     cutoff.setDate(cutoff.getDate() - days);
 
-    return workerRecords.filter((record) => record.sessionDate >= cutoff);
+    return workerRecords.filter((record) => record.isVerified && record.sessionDate >= cutoff);
   }, [dateRange, workerRecords]);
 
   const previousPeriodRecords = useMemo(() => {
@@ -303,7 +303,7 @@ export default function IncomeAnalyticsPage() {
     const previousStart = new Date(currentStart);
     previousStart.setDate(previousStart.getDate() - days);
 
-    return workerRecords.filter((record) => record.sessionDate >= previousStart && record.sessionDate < currentStart);
+    return workerRecords.filter((record) => record.isVerified && record.sessionDate >= previousStart && record.sessionDate < currentStart);
   }, [dateRange, workerRecords]);
 
   const summary = useMemo(() => {
@@ -437,7 +437,7 @@ export default function IncomeAnalyticsPage() {
       const cityMatches = String(peer.city || '').toLowerCase() === String(activeWorker.city || '').toLowerCase();
       const categoryMatches = String(peer.category || '').toLowerCase() === String(activeWorker.category || '').toLowerCase();
 
-      if (!cityMatches || !categoryMatches) {
+      if (!cityMatches || !categoryMatches || !record.isVerified) {
         continue;
       }
 

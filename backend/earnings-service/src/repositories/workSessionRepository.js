@@ -14,6 +14,7 @@ class WorkSessionRepository {
   async findMany(filters) {
     return prisma.workSession.findMany({
       where: filters,
+      include: { earning: true, evidance: true },
       orderBy: { created_at: 'desc' }
     });
   }

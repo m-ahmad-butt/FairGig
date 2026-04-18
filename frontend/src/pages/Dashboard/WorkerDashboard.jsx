@@ -172,10 +172,11 @@ export default function WorkerDashboardPage() {
 		totalEarnings: 0,
 		verifiedCount: 0,
 		unverifiedCount: 0,
-		thisWeek: 0,
+		verifiedEarnings: 0,
 		anomalyCount: 0
 	});
 	const [topAnomaly, setTopAnomaly] = useState(null);
+	const [anomalies, setAnomalies] = useState([]);
 
 	useEffect(() => {
 		loadData();
@@ -195,6 +196,14 @@ export default function WorkerDashboardPage() {
 			const rawSessions = await earningsService.getWorkSessions(workerId);
 			const allEarnings = await earningsService.getEarningsByWorker(workerId);
 
+			// Fetch anomalies from anomaly service
+			let anomalyData = { anomalies: [], count: 0 };
+			try {
+				anomalyData = await earningsService.getWorkerAnomalies(workerId, 20);
+			} catch (error) {
+				console.warn('Failed to fetch anomalies:', error);
+			}
+
 			const merged = rawSessions
 				.map((session) => {
 					const earning = allEarnings.find((item) => item.session_id === session.id);
@@ -212,13 +221,12 @@ export default function WorkerDashboardPage() {
 
 			setSessions(merged);
 
-			const now = new Date();
-			const weekStart = new Date(now);
-			weekStart.setDate(now.getDate() - now.getDay());
-			weekStart.setHours(0, 0, 0, 0);
 
-			const thisWeek = merged
-				.filter((session) => session.earning && new Date(session.session_date) >= weekStart)
+			const verifiedEarnings = merged
+				.filter((session) => {
+					const evidence = session.evidance || session.evidence;
+					return session.earning && evidence?.verified === true;
+				})
 				.reduce((sum, session) => sum + Number(session.earning?.net_received || 0), 0);
 
 			const verifiedCount = merged.filter((session) => {
@@ -234,14 +242,30 @@ export default function WorkerDashboardPage() {
 				.filter((session) => session.deductionPercent >= 30)
 				.sort((left, right) => right.deductionPercent - left.deductionPercent);
 
-			setTopAnomaly(anomalySessions[0] || null);
+			// Use real anomaly data if available, otherwise fall back to deduction-based detection
+			const detectedAnomalies = anomalyData.anomalies.filter((a) => a.anomaly_detected);
+			const anomalyCount = detectedAnomalies.length > 0 ? detectedAnomalies.length : anomalySessions.length;
+			
+			setAnomalies(detectedAnomalies);
+			
+			// Find the most recent or highest priority anomaly
+			let primaryAnomaly = null;
+			if (detectedAnomalies.length > 0) {
+				// Use the most recent anomaly from the service
+				primaryAnomaly = detectedAnomalies[0];
+			} else if (anomalySessions.length > 0) {
+				// Fall back to deduction-based detection
+				primaryAnomaly = anomalySessions[0];
+			}
+
+			setTopAnomaly(primaryAnomaly);
 
 			setStats({
 				totalEarnings: merged.reduce((sum, session) => sum + Number(session.earning?.net_received || 0), 0),
 				verifiedCount,
 				unverifiedCount,
-				thisWeek,
-				anomalyCount: anomalySessions.length
+				verifiedEarnings,
+				anomalyCount
 			});
 		} catch (error) {
 			console.error('Failed to load dashboard:', error);
@@ -292,7 +316,7 @@ export default function WorkerDashboardPage() {
 	const trendDrawing = useMemo(() => buildTrendPath(weeklyTrend), [weeklyTrend]);
 	const hasTrendData = useMemo(() => weeklyTrend.some((point) => point.value > 0), [weeklyTrend]);
 
-	const recentSessions = useMemo(() => sessions.slice(0, 5), [sessions]);
+	const recentSessions = useMemo(() => sessions.slice(0, 10), [sessions]);
 	const firstName = user?.name?.trim()?.split(' ')[0] || 'Worker';
 
 	if (loading) {
@@ -315,10 +339,10 @@ export default function WorkerDashboardPage() {
 
 				<div className="grid gap-4 lg:grid-cols-[2fr_1fr]">
 					<div className="rounded-xl border border-[#2f3f5a] bg-gradient-to-br from-[#1b273c] via-[#2d3e5a] to-[#374559] p-5 text-white shadow-lg">
-						<p className="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-200/90">Earnings This Week</p>
+						<p className="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-200/90">Verified Earnings</p>
 						<div className="mt-2 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
 							<div>
-								<p className="text-4xl font-extrabold tracking-tight sm:text-5xl">{formatCurrency(stats.thisWeek)}</p>
+								<p className="text-4xl font-extrabold tracking-tight sm:text-5xl">{formatCurrency(stats.verifiedEarnings)}</p>
 								<p className="mt-2 inline-flex items-center gap-2 rounded-md bg-emerald-500/20 px-2 py-1 text-xs text-emerald-200">
 									<BadgeCheck className="h-3.5 w-3.5" />
 									Verified {stats.verifiedCount} sessions
@@ -370,9 +394,15 @@ export default function WorkerDashboardPage() {
 								<div>
 									<p className="font-semibold">Anomaly Detected</p>
 									{topAnomaly ? (
-										<p className="mt-1 text-sm">
-											Unusual deduction detected on {formatDateLabel(topAnomaly.session_date)} - {Math.round(topAnomaly.deductionPercent)}% vs your usual.
-										</p>
+										topAnomaly.explanation ? (
+											// Real anomaly from service
+											<p className="mt-1 text-sm">{topAnomaly.explanation}</p>
+										) : (
+											// Fallback deduction-based anomaly
+											<p className="mt-1 text-sm">
+												Unusual deduction detected on {formatDateLabel(topAnomaly.session_date)} - {Math.round(topAnomaly.deductionPercent)}% vs your usual.
+											</p>
+										)
 									) : (
 										<p className="mt-1 text-sm">No high-risk deductions detected in recent sessions.</p>
 									)}
@@ -419,14 +449,23 @@ export default function WorkerDashboardPage() {
 				<div className="mt-6 rounded-xl border border-zinc-200 bg-white shadow-sm">
 					<div className="flex items-center justify-between border-b border-zinc-200 px-4 py-4 sm:px-5">
 						<h2 className="text-xl font-semibold text-zinc-900">Recent Activity</h2>
-						<Link to="/worker/log-earnings" className="inline-flex items-center gap-1 text-sm font-medium text-zinc-700 hover:text-zinc-900">
+						<button
+							type="button"
+							onClick={() => {
+								const activitySection = document.querySelector('.activity-table-container');
+								if (activitySection) {
+									activitySection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+								}
+							}}
+							className="inline-flex items-center gap-1 text-sm font-medium text-zinc-700 hover:text-zinc-900"
+						>
 							View All Activity
 							<ArrowRight className="h-4 w-4" />
-						</Link>
+						</button>
 					</div>
 
 					{recentSessions.length > 0 ? (
-						<div className="overflow-x-auto">
+						<div className="activity-table-container overflow-x-auto">
 							<table className="w-full min-w-[900px] text-sm">
 								<thead className="bg-zinc-50 text-zinc-500">
 									<tr>
