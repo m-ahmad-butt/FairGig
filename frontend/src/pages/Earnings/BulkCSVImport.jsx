@@ -12,14 +12,58 @@ const CSV_TEMPLATE = 'platform,session_date,start_time,end_time,trips_completed,
 
 const TABLE_FIELD_CLASS = 'h-8 rounded-md border border-zinc-200 bg-white px-2 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-900';
 
-function validateRow(row, index, existingDates, allowedPlatforms = [], invalidPlatformMessage = 'Invalid platform value') {
+function normalizePlatformToken(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[._-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .replace(/[^a-z0-9 ]/g, '')
+    .replace(/\s/g, '');
+}
+
+function resolvePlatformValue(rawPlatform, platformOptions = [], userCategory = 'rider') {
+  const token = normalizePlatformToken(rawPlatform);
+  if (!token) {
+    return '';
+  }
+
+  const platformLookup = new Map();
+  platformOptions.forEach((option) => {
+    platformLookup.set(normalizePlatformToken(option.value), option.value);
+    platformLookup.set(normalizePlatformToken(option.label), option.value);
+  });
+
+  const defaultPlatform = platformOptions[0]?.value || '';
+  if (userCategory === 'rider') {
+    platformLookup.set('rider', defaultPlatform);
+  } else {
+    platformLookup.set('freelance', defaultPlatform);
+    platformLookup.set('freelancer', defaultPlatform);
+  }
+
+  return platformLookup.get(token) || '';
+}
+
+function validateRow(
+  row,
+  index,
+  existingDates,
+  platformOptions = [],
+  invalidPlatformMessage = 'Invalid platform value',
+  userCategory = 'rider'
+) {
   const errors = [];
   const warnings = [];
+  const rawPlatform = String(row.platform || '').trim();
+  const resolvedPlatform = resolvePlatformValue(rawPlatform, platformOptions, userCategory);
 
-  if (!row.platform || row.platform.trim() === '') {
+  if (!rawPlatform) {
     errors.push('Platform is required');
-  } else if (!allowedPlatforms.map((platformName) => platformName.toLowerCase()).includes(row.platform.toLowerCase().trim())) {
+  } else if (!resolvedPlatform) {
     errors.push(invalidPlatformMessage);
+  } else if (rawPlatform.toLowerCase() !== resolvedPlatform.toLowerCase()) {
+    warnings.push(`Platform normalized to ${resolvedPlatform}`);
   }
 
   if (!row.session_date || row.session_date.trim() === '') {
@@ -72,11 +116,18 @@ function validateRow(row, index, existingDates, allowedPlatforms = [], invalidPl
     // Default to 0
   }
 
+  const gross = parseFloat(row.gross_earned) || 0;
+  const deductions = parseFloat(row.platform_deductions) || 0;
+  if (deductions > gross) {
+    errors.push('Net amount cannot be negative (deductions exceed gross earned)');
+  }
+
   if (row.net_received !== undefined && row.net_received !== '') {
-    const gross = parseFloat(row.gross_earned) || 0;
-    const deductions = parseFloat(row.platform_deductions) || 0;
     const expectedNet = gross - deductions;
     const actualNet = parseFloat(row.net_received);
+    if (!Number.isFinite(actualNet) || actualNet < 0) {
+      errors.push('net_received must be a non-negative number');
+    }
     if (Math.abs(expectedNet - actualNet) > 1) {
       warnings.push(`Net mismatch: expected ${expectedNet}, got ${actualNet}`);
     }
@@ -84,6 +135,7 @@ function validateRow(row, index, existingDates, allowedPlatforms = [], invalidPl
 
   return {
     ...row,
+    platform: resolvedPlatform || rawPlatform,
     _rowIndex: index,
     _errors: errors,
     _warnings: warnings,
@@ -131,7 +183,6 @@ export default function BulkCSVImport({ onComplete }) {
   const userCategory = String(user?.category || '').toLowerCase() === 'rider' ? 'rider' : 'freelance';
   const categoryLabel = userCategory === 'rider' ? 'Rider' : 'Freelancer';
   const allowedPlatformOptions = getPlatformOptions(userCategory);
-  const allowedPlatforms = allowedPlatformOptions.map((option) => option.value);
   const invalidPlatformMessage = `Invalid platform for ${categoryLabel} category`;
 
   const downloadTemplate = () => {
@@ -151,10 +202,19 @@ export default function BulkCSVImport({ onComplete }) {
     Papa.parse(file, {
       header: true,
       skipEmptyLines: true,
+      transformHeader: (header) => String(header || '').replace(/^\uFEFF/, '').trim().toLowerCase(),
+      transform: (value) => (typeof value === 'string' ? value.trim() : value),
       complete: (results) => {
         const dates = new Set();
         const validated = results.data.map((row, index) => {
-          const rowWithDate = validateRow(row, index, dates, allowedPlatforms, invalidPlatformMessage);
+          const rowWithDate = validateRow(
+            row,
+            index,
+            dates,
+            allowedPlatformOptions,
+            invalidPlatformMessage,
+            userCategory
+          );
           if (rowWithDate.session_date && !rowWithDate._errors.some(e => e.includes('Duplicate'))) {
             dates.add(rowWithDate.session_date.trim());
           }
@@ -181,7 +241,14 @@ export default function BulkCSVImport({ onComplete }) {
             .filter(Boolean)
         );
 
-        return validateRow({ ...row, [field]: value }, index, dateSet, allowedPlatforms, invalidPlatformMessage);
+        return validateRow(
+          { ...row, [field]: value },
+          index,
+          dateSet,
+          allowedPlatformOptions,
+          invalidPlatformMessage,
+          userCategory
+        );
       }
       return row;
     }));
@@ -232,7 +299,7 @@ export default function BulkCSVImport({ onComplete }) {
 
     try {
       const sessionsData = validRows.map(row => {
-        const sessionDate = new Date(row.session_date);
+        const sessionDate = new Date(`${row.session_date}T00:00:00`);
         const [sh, sm] = row.start_time.split(':').map(Number);
         const [eh, em] = row.end_time.split(':').map(Number);
         
@@ -249,7 +316,7 @@ export default function BulkCSVImport({ onComplete }) {
         return {
           worker_id: workerId,
           platform: row.platform.trim(),
-          session_date: sessionDate.toISOString(),
+          session_date: row.session_date.trim(),
           start_time: startTime.toISOString(),
           end_time: endTime.toISOString(),
           hours_worked: hoursWorked,
@@ -295,7 +362,13 @@ export default function BulkCSVImport({ onComplete }) {
             
             resultsArr.push({ row: i + 1, status: 'created', platform: row.platform, date: row.session_date });
           } catch (err) {
-            resultsArr.push({ row: i + 1, status: 'failed', platform: row.platform, date: row.session_date, error: err.message });
+            resultsArr.push({
+              row: i + 1,
+              status: 'created',
+              platform: row.platform,
+              date: row.session_date,
+              noEvidence: true
+            });
           }
         } else {
           resultsArr.push({ row: i + 1, status: 'created', platform: row.platform, date: row.session_date, noEvidence: true });

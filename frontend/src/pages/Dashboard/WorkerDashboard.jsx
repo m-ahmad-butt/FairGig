@@ -130,6 +130,21 @@ function buildTrendPath(points) {
   }
 
   const values = points.map((point) => point.value);
+  const allSame = values.every((value) => value === values[0]);
+
+  if (allSame) {
+    const circles = points.map((_, index) => {
+      const x = (index / Math.max(points.length - 1, 1)) * 100;
+      return { x, y: 52 };
+    });
+
+    const path = circles
+      .map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x.toFixed(2)} ${point.y.toFixed(2)}`)
+      .join(' ');
+
+    return { path, circles };
+  }
+
   const max = Math.max(...values, 1);
   const min = Math.min(...values, 0);
   const range = max - min || 1;
@@ -205,8 +220,8 @@ export default function WorkerDashboardPage() {
         .filter((session) => session.earning && new Date(session.session_date) >= weekStart)
         .reduce((sum, session) => sum + Number(session.earning?.net_received || 0), 0);
 
-      const verifiedCount = merged.filter((session) => session.evidance?.verified === true).length;
-      const unverifiedCount = merged.filter((session) => session.evidance && !session.evidance.verified).length;
+      const verifiedCount = merged.filter((session) => session.earning && session.evidance?.verified === true).length;
+      const unverifiedCount = merged.filter((session) => session.earning && session.evidance?.verified !== true).length;
       const anomalySessions = merged
         .filter((session) => session.deductionPercent >= 30)
         .sort((left, right) => right.deductionPercent - left.deductionPercent);
@@ -228,36 +243,46 @@ export default function WorkerDashboardPage() {
   };
 
   const weeklyTrend = useMemo(() => {
-    const today = new Date();
-    const buckets = Array.from({ length: 7 }).map((_, index) => {
-      const date = new Date(today);
-      date.setDate(today.getDate() - (6 - index));
-      date.setHours(0, 0, 0, 0);
-
-      return {
-        key: date.toISOString().slice(0, 10),
-        label: date.toLocaleDateString('en-US', { weekday: 'short' }),
-        value: 0
-      };
-    });
-
-    const bucketMap = new Map(buckets.map((bucket) => [bucket.key, bucket]));
+    const grouped = new Map();
 
     sessions.forEach((session) => {
       if (!session.earning) {
         return;
       }
 
-      const key = new Date(session.session_date).toISOString().slice(0, 10);
-      if (bucketMap.has(key)) {
-        bucketMap.get(key).value += Number(session.earning?.net_received || 0);
+      const date = new Date(session.session_date);
+      const key = date.toISOString().slice(0, 10);
+
+      if (!grouped.has(key)) {
+        grouped.set(key, {
+          key,
+          label: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+          value: 0
+        });
       }
+
+      grouped.get(key).value += Number(session.earning?.net_received || 0);
     });
 
-    return buckets;
+    const sorted = Array.from(grouped.values()).sort((left, right) => new Date(left.key) - new Date(right.key));
+    if (sorted.length > 0) {
+      return sorted.slice(-7);
+    }
+
+    const today = new Date();
+    return Array.from({ length: 7 }).map((_, index) => {
+      const date = new Date(today);
+      date.setDate(today.getDate() - (6 - index));
+      return {
+        key: date.toISOString().slice(0, 10),
+        label: date.toLocaleDateString('en-US', { weekday: 'short' }),
+        value: 0
+      };
+    });
   }, [sessions]);
 
   const trendDrawing = useMemo(() => buildTrendPath(weeklyTrend), [weeklyTrend]);
+  const hasTrendData = useMemo(() => weeklyTrend.some((point) => point.value > 0), [weeklyTrend]);
 
   const recentSessions = useMemo(() => sessions.slice(0, 5), [sessions]);
   const firstName = user?.name?.trim()?.split(' ')[0] || 'Worker';
@@ -292,36 +317,40 @@ export default function WorkerDashboardPage() {
                 </p>
               </div>
 
-              <div className="h-28 w-full max-w-[260px] rounded-lg border border-white/10 bg-white/5 p-2">
-                <svg viewBox="0 0 100 100" className="h-full w-full" preserveAspectRatio="none" role="img" aria-label="Weekly trend">
-                  <defs>
-                    <linearGradient id="trendStroke" x1="0%" y1="0%" x2="100%" y2="0%">
-                      <stop offset="0%" stopColor="#f5d0aa" />
-                      <stop offset="100%" stopColor="#f8f8f8" />
-                    </linearGradient>
-                  </defs>
-                  <path d={trendDrawing.path} fill="none" stroke="url(#trendStroke)" strokeWidth="2.2" strokeLinecap="round" />
-                  {trendDrawing.circles.map((point, index) => (
-                    <circle key={`${point.x}-${index}`} cx={point.x} cy={point.y} r="2.4" fill="#f5d0aa" stroke="#1f2937" strokeWidth="1" />
-                  ))}
-                </svg>
+              <div className="h-40 w-full max-w-[340px] rounded-lg border border-white/10 bg-white/5 p-2">
+                {hasTrendData ? (
+                  <svg viewBox="0 0 100 100" className="h-full w-full" preserveAspectRatio="none" role="img" aria-label="Weekly trend">
+                    <defs>
+                      <linearGradient id="trendStroke" x1="0%" y1="0%" x2="100%" y2="0%">
+                        <stop offset="0%" stopColor="#f5d0aa" />
+                        <stop offset="100%" stopColor="#f8f8f8" />
+                      </linearGradient>
+                    </defs>
+                    <path d={trendDrawing.path} fill="none" stroke="url(#trendStroke)" strokeWidth="2.2" strokeLinecap="round" />
+                    {trendDrawing.circles.map((point, index) => (
+                      <circle key={`${point.x}-${index}`} cx={point.x} cy={point.y} r="2.4" fill="#f5d0aa" stroke="#1f2937" strokeWidth="1" />
+                    ))}
+                  </svg>
+                ) : (
+                  <div className="flex h-full items-center justify-center text-xs text-zinc-200/80">No earnings trend yet</div>
+                )}
               </div>
             </div>
 
             <div className="mt-5 flex flex-wrap gap-3">
               <button
                 type="button"
-                onClick={() => navigate('/worker/log-earnings')}
+                onClick={() => navigate('/worker/analytics')}
                 className="rounded-lg bg-[#f6d7bf] px-4 py-2.5 text-sm font-semibold text-[#2a2a2a] transition-colors hover:bg-[#f2c9aa]"
               >
-                Log Earnings
+                Analytics
               </button>
               <button
                 type="button"
-                onClick={() => navigate('/worker/analytics')}
+                onClick={() => navigate('/worker/certificate')}
                 className="rounded-lg bg-white/10 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-white/20"
               >
-                View Full Report
+                Get Certificate
               </button>
             </div>
           </div>

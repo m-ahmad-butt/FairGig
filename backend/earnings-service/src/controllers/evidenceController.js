@@ -38,6 +38,12 @@ async function fetchWorkerFromAuthService(workerId) {
 }
 
 class EvidenceController {
+  async getPresignedUrl(req, res) {
+    return res.status(501).json({
+      error: 'Presigned evidence upload is not configured for this deployment'
+    });
+  }
+
   async create(req, res) {
     try {
       const { worker_id, session_id, image_url, verified } = req.body;

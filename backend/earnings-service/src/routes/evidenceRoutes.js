@@ -16,6 +16,7 @@ router.post('/', validateCreateEvidence, evidenceController.create);
 router.post('/bulk', validateBulkEvidence, evidenceController.bulkCreate);
 router.get('/', evidenceController.list);
 router.get('/unverified/detailed', evidenceController.listUnverifiedDetailed);
+router.get('/presigned-url', evidenceController.getPresignedUrl);
 router.get('/worker/:worker_id', validateWorkerIdParam, evidenceController.getByWorkerId);
 router.get('/worker/:worker_id/session/:session_id', validateWorkerAndSessionParams, evidenceController.getByWorkerAndSession);
 router.get('/:id', validateUuidParam, evidenceController.getById);

@@ -74,6 +74,12 @@ export default function SingleSessionEntry({ onComplete }) {
     if (!formData.tripsCompleted || parseInt(formData.tripsCompleted) < 0) errs.tripsCompleted = 'Enter trips completed';
     if (!formData.grossEarned || parseFloat(formData.grossEarned) < 0) errs.grossEarned = 'Enter gross earned';
     if (parseFloat(formData.platformDeductions) < 0) errs.platformDeductions = 'Deductions cannot be negative';
+    const gross = parseFloat(formData.grossEarned) || 0;
+    const deductions = parseFloat(formData.platformDeductions) || 0;
+    if (deductions > gross) {
+      errs.netReceived = 'Net amount cannot be negative';
+      errs.platformDeductions = 'Deductions cannot exceed gross earned';
+    }
     
     setErrors(errs);
     return Object.keys(errs).length === 0;
@@ -100,7 +106,7 @@ export default function SingleSessionEntry({ onComplete }) {
     setLoading(true);
     try {
       const platform = formData.platform;
-      const sessionDate = new Date(formData.sessionDate);
+      const sessionDate = new Date(`${formData.sessionDate}T00:00:00`);
       const [startH, startM] = formData.startTime.split(':').map(Number);
       const [endH, endM] = formData.endTime.split(':').map(Number);
       
@@ -115,10 +121,20 @@ export default function SingleSessionEntry({ onComplete }) {
       const platformDeductions = parseFloat(formData.platformDeductions) || 0;
       const netReceived = grossEarned - platformDeductions;
 
+      if (netReceived < 0) {
+        setErrors((prev) => ({
+          ...prev,
+          netReceived: 'Net amount cannot be negative',
+          platformDeductions: 'Deductions cannot exceed gross earned'
+        }));
+        setLoading(false);
+        return;
+      }
+
       const sessionResult = await earningsService.createWorkSession({
         worker_id: workerId,
         platform,
-        session_date: sessionDate.toISOString(),
+        session_date: formData.sessionDate,
         start_time: startTime.toISOString(),
         end_time: endTime.toISOString(),
         hours_worked: hoursWorked,
@@ -191,11 +207,6 @@ export default function SingleSessionEntry({ onComplete }) {
     }
 
     if (!evidenceFile) {
-      await earningsService.createEvidence({
-        worker_id: workerId,
-        session_id: sessionId,
-        image_url: ''
-      });
       onComplete?.(sessionId);
       return;
     }
@@ -215,16 +226,8 @@ export default function SingleSessionEntry({ onComplete }) {
       
       onComplete?.(sessionId);
     } catch (error) {
-      if (error.message.includes('presigned')) {
-        await earningsService.createEvidence({
-          worker_id: workerId,
-          session_id: sessionId,
-          image_url: ''
-        });
-        onComplete?.(sessionId);
-      } else {
-        toast.error(error.message || 'Upload failed');
-      }
+      toast.success('Image upload unavailable. Session completed without screenshot.');
+      onComplete?.(sessionId);
     } finally {
       setLoading(false);
       setUploadProgress(0);
@@ -349,7 +352,13 @@ export default function SingleSessionEntry({ onComplete }) {
 
             <div className="space-y-2">
               <label className="text-sm font-medium text-zinc-700">Net Received (PKR)</label>
-              <Input type="text" value={formData.netReceived} readOnly className="border-emerald-200 bg-emerald-50 text-emerald-700 font-medium" />
+              <Input
+                type="text"
+                value={formData.netReceived}
+                readOnly
+                className={`border-emerald-200 bg-emerald-50 text-emerald-700 font-medium ${errors.netReceived ? ERROR_FIELD_CLASS : ''}`}
+              />
+              {errors.netReceived && <p className="text-xs text-red-600">{errors.netReceived}</p>}
             </div>
 
             <Button onClick={handleSubmitCard1} disabled={loading} className="h-11 w-full">
