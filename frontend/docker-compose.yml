@@ -2,14 +2,19 @@ services:
   frontend:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.dev
       args:
-        VITE_CLERK_PUBLISHABLE_KEY: ${VITE_CLERK_PUBLISHABLE_KEY}
+        VITE_CLERK_PUBLISHABLE_KEY: ${VITE_CLERK_PUBLISHABLE_KEY:-}
         VITE_SOCKET_URL: ${VITE_SOCKET_URL:-http://localhost:3001}
-        VITE_STRIPE_PUBLISHABLE_KEY: ${VITE_STRIPE_PUBLISHABLE_KEY}
+        VITE_STRIPE_PUBLISHABLE_KEY: ${VITE_STRIPE_PUBLISHABLE_KEY:-}
     container_name: frontend
     ports:
-      - "80:80"
+      - "5173:5173"
+    volumes:
+      - .:/app
+      - /app/node_modules
+    stdin_open: true
+    tty: true
     networks:
       - hackathon-network
     restart: unless-stopped

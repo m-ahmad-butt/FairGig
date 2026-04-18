@@ -6,4 +6,8 @@ export default defineConfig({
   plugins: [react()],
   envDir: '../',
   envPrefix: ['VITE_', 'API_GATEWAY_'],
+  server: {
+    host: '0.0.0.0',
+    port: 5173
+  }
 })

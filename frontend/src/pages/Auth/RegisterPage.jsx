@@ -81,7 +81,7 @@ export default function RegisterPage() {
       const result = await authService.signup({ name, email, password, role });
       
       toast.success(result.message);
-      navigate('/verify-otp', { state: { email, role } });
+      navigate('/onboarding', { state: { email, role } });
     } catch (error) {
       toast.error(error.message);
     } finally {

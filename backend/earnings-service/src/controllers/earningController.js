@@ -20,9 +20,10 @@ class EarningController {
 
       const created = await earningRepository.create({
         session_id,
-        gross_earned: Number(gross_earned),
-        platform_deductions: Number(platform_deductions),
-        net_received: Number(net_received)
+        gross_earned: parseFloat(gross_earned),
+        platform_deductions: parseFloat(platform_deductions) || 0,
+        net_received: parseFloat(net_received)
+      });
       });
 
       return res.status(201).json(serializeEarning(created));
@@ -79,9 +80,9 @@ class EarningController {
 
       const createData = items.map((item) => ({
         session_id: item.session_id,
-        gross_earned: new Prisma.Decimal(item.gross_earned),
-        platform_deductions: new Prisma.Decimal(item.platform_deductions),
-        net_received: new Prisma.Decimal(item.net_received)
+        gross_earned: parseFloat(item.gross_earned),
+        platform_deductions: parseFloat(item.platform_deductions) || 0,
+        net_received: parseFloat(item.net_received)
       }));
 
       const created = await earningRepository.createMany(createData);
@@ -180,15 +181,16 @@ class EarningController {
       }
 
       if (gross_earned !== undefined) {
-        updateData.gross_earned = Number(gross_earned);
+        updateData.gross_earned = parseFloat(gross_earned);
       }
 
       if (platform_deductions !== undefined) {
-        updateData.platform_deductions = Number(platform_deductions);
+        updateData.platform_deductions = parseFloat(platform_deductions);
       }
 
       if (net_received !== undefined) {
-        updateData.net_received = Number(net_received);
+        updateData.net_received = parseFloat(net_received);
+      }
       }
 
       const effectiveGrossEarned = Number(

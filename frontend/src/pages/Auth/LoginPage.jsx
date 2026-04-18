@@ -27,7 +27,13 @@ export default function LoginPage() {
       
       toast.success(result.message);
 
-      if (result.user.role === 'admin') {
+      // Check if onboarding is needed
+      const user = result.user;
+      const needsOnboarding = !user.emailVerified || !user.city || !user.zone;
+      
+      if (needsOnboarding) {
+        navigate('/onboarding', { state: { email: formData.email, role: user.role } });
+      } else if (user.role === 'admin') {
         navigate('/admin/dashboard');
       } else if (result.user.role === 'worker') {
         navigate('/worker/dashboard');

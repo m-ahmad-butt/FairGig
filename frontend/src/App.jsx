@@ -6,6 +6,7 @@ import LoginPage from './pages/Auth/LoginPage';
 import ForgotPasswordPage from './pages/Auth/ForgotPasswordPage';
 import VerifyOtpPage from './pages/Auth/VerifyOtpPage';
 import PendingApprovalPage from './pages/Auth/PendingApprovalPage';
+import OnboardingPage from './pages/Auth/OnboardingPage';
 import DashboardPage from './pages/Dashboard/DashboardPage';
 import AdminDashboard from './pages/Admin/AdminDashboard';
 import ProfilePage from './pages/Profile/ProfilePage';
@@ -21,6 +22,7 @@ function App() {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/verify-otp" element={<VerifyOtpPage />} />
+        <Route path="/onboarding" element={<OnboardingPage />} />
         <Route path="/pending-approval" element={<PendingApprovalPage />} />
         
         {/* Dashboards */}
