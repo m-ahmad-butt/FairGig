@@ -2,6 +2,7 @@ stages:
   - build
   - deploy-services
   - deploy-gateway
+  - deploy-frontend
 
 variables:
   DOCKER_DRIVER: overlay2
@@ -66,6 +67,21 @@ build:backend-images:
     - docker push "${IMAGE_REPO}:latest"
   <<: *main_branch_rules
 
+build:frontend-image:
+  stage: build
+  image: docker:24.0.5
+  services:
+    - name: docker:24.0.5-dind
+      alias: docker
+  before_script:
+    - echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
+  script:
+    - IMAGE_REPO="${FRONTEND_IMAGE:-${DOCKER_REGISTRY_URL}/${DOCKER_USERNAME}/s-frontend}"
+    - docker build --pull -t "${IMAGE_REPO}:${CI_COMMIT_SHORT_SHA}" -t "${IMAGE_REPO}:latest" frontend
+    - docker push "${IMAGE_REPO}:${CI_COMMIT_SHORT_SHA}"
+    - docker push "${IMAGE_REPO}:latest"
+  <<: *main_branch_rules
+
 .deploy_base: &deploy_base
   image: alpine:3.20
   before_script:
@@ -107,10 +123,11 @@ deploy:api-gateway:
       "set -eu;
       echo '${DOCKER_PASSWORD_B64}' | base64 -d | sudo docker login -u '${DOCKER_USERNAME}' --password-stdin;
       sudo docker network create ${DEPLOY_NETWORK} >/dev/null 2>&1 || true;
+      sudo docker stop api-gateway >/dev/null 2>&1 || true;
       sudo docker rm -f api-gateway >/dev/null 2>&1 || true;
       sudo docker pull ${IMAGE_REPO}:${CI_COMMIT_SHORT_SHA};
       sudo docker run -d --name api-gateway --network ${DEPLOY_NETWORK} --restart unless-stopped -p 8080:8080 -e PORT=8080 -e AUTH_SERVICE_URL='${AUTH_SERVICE_URL}' -e EARNINGS_SERVICE_URL='${EARNINGS_SERVICE_URL}' -e GRIEVANCE_SERVICE_URL='${GRIEVANCE_SERVICE_URL}' -e CERTIFICATE_SERVICE_URL='${CERTIFICATE_SERVICE_URL}' -e SHARED_AGENT_SERVICE_URL='${SHARED_AGENT_SERVICE_URL}' -e ANALYTICS_SERVICE_URL='${ANALYTICS_SERVICE_URL}' -e ANOMALY_SERVICE_URL='${ANOMALY_SERVICE_URL}' ${IMAGE_REPO}:${CI_COMMIT_SHORT_SHA};
-      sudo docker image prune -af --filter 'until=168h' >/dev/null 2>&1 || true"
+      sudo docker image prune -af >/dev/null 2>&1 || true"
   environment:
     name: production/api-gateway
     url: "http://${API_GATEWAY_EC2_IP}:8080"
@@ -184,14 +201,15 @@ deploy:node-services:
       "set -eu;
       echo '${DOCKER_PASSWORD_B64}' | base64 -d | sudo docker login -u '${DOCKER_USERNAME}' --password-stdin;
       sudo docker network create ${DEPLOY_NETWORK} >/dev/null 2>&1 || true;
+      sudo docker stop ${SERVICE_NAME} >/dev/null 2>&1 || true;
+      sudo docker rm -f ${SERVICE_NAME} >/dev/null 2>&1 || true;
       sudo docker rm -f ${MONGO_CONTAINER} >/dev/null 2>&1 || true;
       sudo docker run -d --name ${MONGO_CONTAINER} --network ${DEPLOY_NETWORK} --restart unless-stopped -p ${MONGO_HOST_PORT}:27017 -v ${MONGO_CONTAINER}-data:/data/db mongo:7 >/dev/null;
       sudo docker rm -f ${MONGO_EXPRESS_CONTAINER} >/dev/null 2>&1 || true;
       sudo docker run -d --name ${MONGO_EXPRESS_CONTAINER} --network ${DEPLOY_NETWORK} --restart unless-stopped -p ${MONGO_EXPRESS_PORT}:8081 -e ME_CONFIG_MONGODB_URL='mongodb://${MONGO_CONTAINER}:27017/?directConnection=true' -e ME_CONFIG_BASICAUTH=false mongo-express:latest >/dev/null;
-      sudo docker rm -f ${SERVICE_NAME} >/dev/null 2>&1 || true;
       sudo docker pull ${IMAGE_REPO}:${CI_COMMIT_SHORT_SHA};
       sudo docker run -d --name ${SERVICE_NAME} --network ${DEPLOY_NETWORK} --restart unless-stopped -p ${SERVICE_PORT}:${SERVICE_PORT} -e PORT=${SERVICE_PORT} -e SERVICE_NAME=${SERVICE_NAME} -e FRONTEND_URL='${FRONTEND_URL}' -e DATABASE_URL='mongodb://${MONGO_CONTAINER}:27017/${DATABASE_NAME}' -e JWT_SECRET='${JWT_SECRET}' -e JWT_REFRESH_SECRET='${JWT_REFRESH_SECRET}' -e EMAIL_HOST='${EMAIL_HOST}' -e EMAIL_PORT='${EMAIL_PORT}' -e EMAIL_USER='${EMAIL_USER}' -e EMAIL_PASS='${EMAIL_PASS}' ${IMAGE_REPO}:${CI_COMMIT_SHORT_SHA};
-      sudo docker image prune -af --filter 'until=168h' >/dev/null 2>&1 || true"
+      sudo docker image prune -af >/dev/null 2>&1 || true"
 
 deploy:python-services:
   <<: *deploy_base
@@ -238,11 +256,43 @@ deploy:python-services:
       "set -eu;
       echo '${DOCKER_PASSWORD_B64}' | base64 -d | sudo docker login -u '${DOCKER_USERNAME}' --password-stdin;
       sudo docker network create ${DEPLOY_NETWORK} >/dev/null 2>&1 || true;
+      sudo docker stop ${SERVICE_NAME} >/dev/null 2>&1 || true;
+      sudo docker rm -f ${SERVICE_NAME} >/dev/null 2>&1 || true;
       sudo docker rm -f ${MONGO_CONTAINER} >/dev/null 2>&1 || true;
       sudo docker run -d --name ${MONGO_CONTAINER} --network ${DEPLOY_NETWORK} --restart unless-stopped -p ${MONGO_HOST_PORT}:27017 -v ${MONGO_CONTAINER}-data:/data/db mongo:7 >/dev/null;
       sudo docker rm -f ${MONGO_EXPRESS_CONTAINER} >/dev/null 2>&1 || true;
       sudo docker run -d --name ${MONGO_EXPRESS_CONTAINER} --network ${DEPLOY_NETWORK} --restart unless-stopped -p ${MONGO_EXPRESS_PORT}:8081 -e ME_CONFIG_MONGODB_URL='mongodb://${MONGO_CONTAINER}:27017/?directConnection=true' -e ME_CONFIG_BASICAUTH=false mongo-express:latest >/dev/null;
-      sudo docker rm -f ${SERVICE_NAME} >/dev/null 2>&1 || true;
       sudo docker pull ${IMAGE_REPO}:${CI_COMMIT_SHORT_SHA};
       sudo docker run -d --name ${SERVICE_NAME} --network ${DEPLOY_NETWORK} --restart unless-stopped -p ${SERVICE_PORT}:${SERVICE_PORT} -e PORT=${SERVICE_PORT} -e SERVICE_NAME=${SERVICE_NAME} -e FRONTEND_URL='${FRONTEND_URL}' -e DATABASE_URL='mongodb://${MONGO_CONTAINER}:27017/${DATABASE_NAME}' ${IMAGE_REPO}:${CI_COMMIT_SHORT_SHA} uvicorn app.main:app --host 0.0.0.0 --port ${SERVICE_PORT};
-      sudo docker image prune -af --filter 'until=168h' >/dev/null 2>&1 || true"
+      sudo docker image prune -af >/dev/null 2>&1 || true"
+
+deploy:frontend:
+  <<: *deploy_base
+  stage: deploy-frontend
+  script:
+    - |
+      if [ -z "$FRONTEND_EC2_IP" ]; then
+        echo "Missing required variable: FRONTEND_EC2_IP"
+        exit 1
+      fi
+    - SSH_KEY_CONTENT="${SOFTEC_LF_SSH:-$SSH_PRIVATE_KEY}"
+    - |
+      if [ -z "$SSH_KEY_CONTENT" ]; then
+        echo "Missing required SSH key variable: SOFTEC_LF_SSH or SSH_PRIVATE_KEY"
+        exit 1
+      fi
+    - printf '%s\n' "$SSH_KEY_CONTENT" > ~/.ssh/id_rsa
+    - IMAGE_REPO="${FRONTEND_IMAGE:-${DOCKER_REGISTRY_URL}/${DOCKER_USERNAME}/s-frontend}"
+    - >
+      ssh -o StrictHostKeyChecking=no "${SSH_REMOTE_USER}@${FRONTEND_EC2_IP}"
+      "set -eu;
+      echo '${DOCKER_PASSWORD_B64}' | base64 -d | sudo docker login -u '${DOCKER_USERNAME}' --password-stdin;
+      sudo docker network create ${DEPLOY_NETWORK} >/dev/null 2>&1 || true;
+      sudo docker stop hackathon-frontend >/dev/null 2>&1 || true;
+      sudo docker rm -f hackathon-frontend >/dev/null 2>&1 || true;
+      sudo docker pull ${IMAGE_REPO}:${CI_COMMIT_SHORT_SHA};
+      sudo docker run -d --name hackathon-frontend --network ${DEPLOY_NETWORK} --restart unless-stopped -p 8080:80 ${IMAGE_REPO}:${CI_COMMIT_SHORT_SHA};
+      sudo docker image prune -af >/dev/null 2>&1 || true"
+  environment:
+    name: production/frontend
+    url: "http://${FRONTEND_EC2_IP}:8080"
