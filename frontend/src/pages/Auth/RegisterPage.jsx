@@ -1,38 +1,17 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import authService from '../../services/api/authService';
-
-const WORKER_ROLE = 'worker';
-
-const CATEGORY_OPTIONS = [
-  { value: 'rider', label: 'Rider' },
-  { value: 'freelance', label: 'Freelancer' }
-];
-
-const RIDER_PLATFORM_OPTIONS = [
-  { value: 'uber', label: 'Uber' },
-  { value: 'careem', label: 'Careem' }
-];
-
-const FREELANCER_PLATFORM_OPTIONS = [
-  { value: 'fiverr', label: 'Fiverr' },
-  { value: 'upwork', label: 'Upwork' }
-];
-
-const RIDER_TYPE_OPTIONS = [
-  { value: 'bike', label: 'Bike' },
-  { value: 'car', label: 'Car' },
-  { value: 'rickshaw', label: 'Rickshaw' }
-];
-
-const FREELANCER_TYPE_OPTIONS = [
-  { value: 'ui_ux', label: 'UI/UX' },
-  { value: 'web_development', label: 'Web Development' },
-  { value: 'graphic_design', label: 'Graphic Design' },
-  { value: 'content_writing', label: 'Content Writing' },
-  { value: 'digital_marketing', label: 'Digital Marketing' }
-];
+import {
+  WORKER_ROLE,
+  CATEGORY_OPTIONS,
+  RIDER_TYPE_OPTIONS,
+  FREELANCER_TYPE_OPTIONS,
+  DEFAULT_PLATFORM_CATALOG,
+  getPlatformOptions,
+  getDefaultPlatform,
+  normalizePlatformCatalog
+} from '../../utils/workerProfileOptions';
 
 const ROLES = [
   {
@@ -72,6 +51,7 @@ const ROLES = [
 
 export default function RegisterPage() {
   const navigate = useNavigate();
+  const [platformCatalog, setPlatformCatalog] = useState(DEFAULT_PLATFORM_CATALOG);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -79,11 +59,56 @@ export default function RegisterPage() {
     confirmPassword: '',
     role: WORKER_ROLE,
     category: 'rider',
-    platform: RIDER_PLATFORM_OPTIONS[0].value,
+    platform: getDefaultPlatform('rider'),
     vehicleType: RIDER_TYPE_OPTIONS[0].value,
     freelancerType: FREELANCER_TYPE_OPTIONS[0].value
   });
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadPlatformCatalog() {
+      try {
+        const response = await authService.getPlatforms();
+
+        if (!isMounted) {
+          return;
+        }
+
+        const catalog = normalizePlatformCatalog(response);
+        setPlatformCatalog(catalog);
+      } catch (error) {
+        console.error('Failed to fetch platform options, using fallback:', error);
+      }
+    }
+
+    loadPlatformCatalog();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const platformOptions = useMemo(
+    () => getPlatformOptions(formData.category, platformCatalog),
+    [formData.category, platformCatalog]
+  );
+
+  useEffect(() => {
+    if (formData.role !== WORKER_ROLE) {
+      return;
+    }
+
+    if (platformOptions.some((option) => option.value === formData.platform)) {
+      return;
+    }
+
+    setFormData((prev) => ({
+      ...prev,
+      platform: platformOptions[0]?.value || ''
+    }));
+  }, [formData.role, formData.platform, platformOptions]);
 
   const handleChange = (e) => {
     setFormData((prev) => ({
@@ -97,10 +122,12 @@ export default function RegisterPage() {
   };
 
   const handleCategoryChange = (category) => {
+    const nextPlatformOptions = getPlatformOptions(category, platformCatalog);
+
     setFormData((prev) => ({
       ...prev,
       category,
-      platform: category === 'rider' ? RIDER_PLATFORM_OPTIONS[0].value : FREELANCER_PLATFORM_OPTIONS[0].value,
+      platform: nextPlatformOptions[0]?.value || '',
       vehicleType: RIDER_TYPE_OPTIONS[0].value,
       freelancerType: FREELANCER_TYPE_OPTIONS[0].value
     }));
@@ -167,7 +194,6 @@ export default function RegisterPage() {
   };
 
   const typeOptions = formData.category === 'rider' ? RIDER_TYPE_OPTIONS : FREELANCER_TYPE_OPTIONS;
-  const platformOptions = formData.category === 'rider' ? RIDER_PLATFORM_OPTIONS : FREELANCER_PLATFORM_OPTIONS;
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-white px-4 py-12">

@@ -118,6 +118,19 @@ class AuthService {
     return result;
   }
 
+  async getPlatforms(category) {
+    const query = category ? `?category=${encodeURIComponent(category)}` : '';
+
+    const response = await fetch(`${API_URL}/platforms${query}`);
+    const result = await response.json();
+
+    if (!response.ok) {
+      throw new Error(result.error || 'Failed to fetch platforms');
+    }
+
+    return result;
+  }
+
   async refreshToken() {
     const refreshToken = localStorage.getItem('refreshToken');
 

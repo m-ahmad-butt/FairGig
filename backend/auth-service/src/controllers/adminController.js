@@ -2,6 +2,10 @@ const userRepository = require('../repositories/userRepository');
 const emailService = require('../utils/emailService');
 const { USER_STATUS } = require('../config/constants');
 
+function isObjectId(value) {
+  return /^[a-f\d]{24}$/i.test(value);
+}
+
 class AdminController {
   async getPendingUsers(req, res) {
     try {
@@ -16,6 +20,10 @@ class AdminController {
   async approveUser(req, res) {
     try {
       const { userId } = req.params;
+
+      if (!isObjectId(userId)) {
+        return res.status(400).json({ error: 'userId must be a valid Mongo ObjectId string' });
+      }
 
       const user = await userRepository.findById(userId);
 
@@ -48,7 +56,7 @@ class AdminController {
 
       const userId = Buffer.from(token, 'base64').toString('utf-8');
 
-      if (!/^[a-f\d]{24}$/i.test(userId)) {
+      if (!isObjectId(userId)) {
         return res.status(400).json({ error: 'Invalid approval token' });
       }
 
@@ -94,6 +102,10 @@ class AdminController {
   async rejectUser(req, res) {
     try {
       const { userId } = req.params;
+
+      if (!isObjectId(userId)) {
+        return res.status(400).json({ error: 'userId must be a valid Mongo ObjectId string' });
+      }
 
       const user = await userRepository.findById(userId);
 

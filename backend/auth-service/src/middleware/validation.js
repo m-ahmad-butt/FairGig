@@ -1,9 +1,11 @@
 const { ROLES } = require('../config/constants');
+const {
+  RIDER_PLATFORMS,
+  FREELANCER_PLATFORMS,
+  ALL_WORKER_PLATFORMS
+} = require('../config/platformOptions');
 
 const WORKER_CATEGORIES = ['rider', 'freelance'];
-const RIDER_PLATFORMS = ['uber', 'careem'];
-const FREELANCER_PLATFORMS = ['fiverr', 'upwork'];
-const ALL_WORKER_PLATFORMS = [...RIDER_PLATFORMS, ...FREELANCER_PLATFORMS];
 const RIDER_VEHICLE_TYPES = ['bike', 'car', 'rickshaw'];
 const FREELANCER_TYPES = ['ui_ux', 'web_development', 'graphic_design', 'content_writing', 'digital_marketing'];
 
@@ -34,7 +36,7 @@ function validateWorkerSelectionFields({ category, platform, vehicleType, freela
   }
 
   if (isProvided(platform) && !ALL_WORKER_PLATFORMS.includes(platform)) {
-    return 'platform must be one of uber, careem, fiverr, upwork';
+    return `platform must be one of ${ALL_WORKER_PLATFORMS.join(', ')}`;
   }
 
   if (isProvided(vehicleType) && !RIDER_VEHICLE_TYPES.includes(vehicleType)) {
@@ -55,7 +57,7 @@ function validateWorkerSelectionFields({ category, platform, vehicleType, freela
     }
 
     if (isProvided(platform) && !RIDER_PLATFORMS.includes(platform)) {
-      return 'For rider category, platform must be uber or careem';
+      return `For rider category, platform must be one of ${RIDER_PLATFORMS.join(', ')}`;
     }
 
     if (isProvided(freelancerType)) {
@@ -69,7 +71,7 @@ function validateWorkerSelectionFields({ category, platform, vehicleType, freela
     }
 
     if (isProvided(platform) && !FREELANCER_PLATFORMS.includes(platform)) {
-      return 'For freelance category, platform must be fiverr or upwork';
+      return `For freelance category, platform must be one of ${FREELANCER_PLATFORMS.join(', ')}`;
     }
 
     if (isProvided(vehicleType)) {

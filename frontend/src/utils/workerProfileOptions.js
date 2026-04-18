@@ -6,14 +6,66 @@ export const CATEGORY_OPTIONS = [
 ];
 
 export const RIDER_PLATFORM_OPTIONS = [
+  { value: 'careem', label: 'Careem' },
   { value: 'uber', label: 'Uber' },
-  { value: 'careem', label: 'Careem' }
+  { value: 'indrive', label: 'InDrive' },
+  { value: 'bykea', label: 'Bykea' },
+  { value: 'jeeny', label: 'Jeeny' },
+  { value: 'yango', label: 'Yango' },
+  { value: 'swvl', label: 'Swvl' },
+  { value: 'airlift', label: 'Airlift' },
+  { value: 'iride', label: 'iRide' }
 ];
 
 export const FREELANCER_PLATFORM_OPTIONS = [
+  { value: 'upwork', label: 'Upwork' },
   { value: 'fiverr', label: 'Fiverr' },
-  { value: 'upwork', label: 'Upwork' }
+  { value: 'freelancer_com', label: 'Freelancer.com' },
+  { value: 'people_per_hour', label: 'PeoplePerHour' },
+  { value: 'guru', label: 'Guru' },
+  { value: 'truelancer', label: 'Truelancer' },
+  { value: 'workana', label: 'Workana' },
+  { value: 'hubstaff_talent', label: 'Hubstaff Talent' },
+  { value: 'contra', label: 'Contra' },
+  { value: 'toptal', label: 'Toptal' }
 ];
+
+export const DEFAULT_PLATFORM_CATALOG = {
+  rider: RIDER_PLATFORM_OPTIONS,
+  freelance: FREELANCER_PLATFORM_OPTIONS
+};
+
+function isOption(option) {
+  return Boolean(option && typeof option.value === 'string' && typeof option.label === 'string');
+}
+
+function isCategoryOptionList(options) {
+  return Array.isArray(options) && options.length > 0 && options.every(isOption);
+}
+
+export function normalizePlatformCatalog(payload) {
+  const fallback = DEFAULT_PLATFORM_CATALOG;
+
+  if (!payload || typeof payload !== 'object') {
+    return fallback;
+  }
+
+  if (isCategoryOptionList(payload?.platforms?.rider) && isCategoryOptionList(payload?.platforms?.freelance)) {
+    return {
+      rider: payload.platforms.rider,
+      freelance: payload.platforms.freelance
+    };
+  }
+
+  if (isCategoryOptionList(payload.platforms) && (payload.category === 'rider' || payload.category === 'freelance')) {
+    return {
+      ...fallback,
+      [payload.category]: payload.platforms
+    };
+  }
+
+  return fallback;
+}
 
 export const RIDER_TYPE_OPTIONS = [
   { value: 'bike', label: 'Bike' },
@@ -29,12 +81,12 @@ export const FREELANCER_TYPE_OPTIONS = [
   { value: 'digital_marketing', label: 'Digital Marketing' }
 ];
 
-export function getPlatformOptions(category) {
+export function getPlatformOptions(category, platformCatalog = DEFAULT_PLATFORM_CATALOG) {
   if (category === 'freelance') {
-    return FREELANCER_PLATFORM_OPTIONS;
+    return platformCatalog.freelance || FREELANCER_PLATFORM_OPTIONS;
   }
 
-  return RIDER_PLATFORM_OPTIONS;
+  return platformCatalog.rider || RIDER_PLATFORM_OPTIONS;
 }
 
 export function getTypeOptions(category) {
@@ -45,8 +97,8 @@ export function getTypeOptions(category) {
   return RIDER_TYPE_OPTIONS;
 }
 
-export function getDefaultPlatform(category) {
-  return getPlatformOptions(category)[0].value;
+export function getDefaultPlatform(category, platformCatalog = DEFAULT_PLATFORM_CATALOG) {
+  return getPlatformOptions(category, platformCatalog)[0]?.value || '';
 }
 
 export function getDefaultTypeValue(category) {
@@ -57,12 +109,12 @@ export function getCategoryLabel(category) {
   return CATEGORY_OPTIONS.find((option) => option.value === category)?.label || 'Not set';
 }
 
-export function getPlatformLabel(category, platform) {
+export function getPlatformLabel(category, platform, platformCatalog = DEFAULT_PLATFORM_CATALOG) {
   if (!platform) {
     return 'Not set';
   }
 
-  return getPlatformOptions(category).find((option) => option.value === platform)?.label || platform;
+  return getPlatformOptions(category, platformCatalog).find((option) => option.value === platform)?.label || platform;
 }
 
 export function getTypeLabel(category, value) {

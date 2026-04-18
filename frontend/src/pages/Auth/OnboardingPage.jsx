@@ -7,11 +7,13 @@ import { DEFAULT_LAHORE_LOCATION, reverseGeocode } from '../../utils/location';
 import {
   CATEGORY_OPTIONS,
   WORKER_ROLE,
+  DEFAULT_PLATFORM_CATALOG,
   getCategoryLabel,
   getDefaultPlatform,
   getDefaultTypeValue,
   getPlatformOptions,
-  getTypeOptions
+  getTypeOptions,
+  normalizePlatformCatalog
 } from '../../utils/workerProfileOptions';
 
 function getDashboardPath(role) {
@@ -45,6 +47,7 @@ export default function OnboardingPage() {
   const [detectingLocation, setDetectingLocation] = useState(false);
   const [step, setStep] = useState(1);
   const [user, setUser] = useState(null);
+  const [platformCatalog, setPlatformCatalog] = useState(DEFAULT_PLATFORM_CATALOG);
   const [formData, setFormData] = useState({
     city: '',
     zone: '',
@@ -60,7 +63,10 @@ export default function OnboardingPage() {
   const categoryLocked = Boolean(user?.category);
   const selectedCategory = formData.category || CATEGORY_OPTIONS[0].value;
 
-  const platformOptions = useMemo(() => getPlatformOptions(selectedCategory), [selectedCategory]);
+  const platformOptions = useMemo(
+    () => getPlatformOptions(selectedCategory, platformCatalog),
+    [selectedCategory, platformCatalog]
+  );
   const typeOptions = useMemo(() => getTypeOptions(selectedCategory), [selectedCategory]);
 
   const mapPosition = useMemo(
@@ -74,6 +80,45 @@ export default function OnboardingPage() {
   useEffect(() => {
     loadProfile();
   }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadPlatformCatalog() {
+      try {
+        const response = await authService.getPlatforms();
+
+        if (!isMounted) {
+          return;
+        }
+
+        setPlatformCatalog(normalizePlatformCatalog(response));
+      } catch (error) {
+        console.error('Failed to fetch platform options, using fallback:', error);
+      }
+    }
+
+    loadPlatformCatalog();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isWorker) {
+      return;
+    }
+
+    if (platformOptions.some((option) => option.value === formData.platform)) {
+      return;
+    }
+
+    setFormData((prev) => ({
+      ...prev,
+      platform: platformOptions[0]?.value || ''
+    }));
+  }, [formData.platform, isWorker, platformOptions]);
 
   const loadProfile = async () => {
     try {
@@ -170,10 +215,12 @@ export default function OnboardingPage() {
       return;
     }
 
+    const nextPlatformOptions = getPlatformOptions(category, platformCatalog);
+
     setFormData((prev) => ({
       ...prev,
       category,
-      platform: getDefaultPlatform(category),
+      platform: nextPlatformOptions[0]?.value || getDefaultPlatform(category),
       vehicleType: getDefaultTypeValue('rider'),
       freelancerType: getDefaultTypeValue('freelance')
     }));

@@ -48,10 +48,26 @@ enum VehicleType {
 }
 
 enum WorkerPlatform {
-  uber
   careem
-  fiverr
+  uber
+  indrive
+  bykea
+  jeeny
+  yango
+  swvl
+  airlift
+  iride
+
   upwork
+  fiverr
+  freelancer_com
+  people_per_hour
+  guru
+  truelancer
+  workana
+  hubstaff_talent
+  contra
+  toptal
 }
 
 enum FreelancerType {

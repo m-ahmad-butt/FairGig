@@ -5,9 +5,12 @@ const emailService = require('../utils/emailService');
 const tokenService = require('../utils/tokenService');
 const otpService = require('../utils/otpService');
 const { ROLES, USER_STATUS, ADMIN_EMAIL } = require('../config/constants');
-
-const RIDER_PLATFORMS = ['uber', 'careem'];
-const FREELANCER_PLATFORMS = ['fiverr', 'upwork'];
+const {
+  PLATFORM_OPTIONS,
+  RIDER_PLATFORMS,
+  FREELANCER_PLATFORMS,
+  isWorkerCategory
+} = require('../config/platformOptions');
 
 class AuthController {
   constructor() {
@@ -17,6 +20,7 @@ class AuthController {
     this.login = this.login.bind(this);
     this.refreshToken = this.refreshToken.bind(this);
     this.getMe = this.getMe.bind(this);
+    this.getPlatforms = this.getPlatforms.bind(this);
     this.updateWorkerProfile = this.updateWorkerProfile.bind(this);
     this.getOnPlatformWorkers = this.getOnPlatformWorkers.bind(this);
     this.logout = this.logout.bind(this);
@@ -67,8 +71,8 @@ class AuthController {
       const allowedPlatforms = effectiveCategory === 'rider' ? RIDER_PLATFORMS : FREELANCER_PLATFORMS;
       if (!allowedPlatforms.includes(payload.platform)) {
         return effectiveCategory === 'rider'
-          ? 'For rider category, platform must be uber or careem'
-          : 'For freelance category, platform must be fiverr or upwork';
+          ? `For rider category, platform must be one of ${RIDER_PLATFORMS.join(', ')}`
+          : `For freelance category, platform must be one of ${FREELANCER_PLATFORMS.join(', ')}`;
       }
 
       updateData.platform = payload.platform;
@@ -348,6 +352,31 @@ class AuthController {
     }
   }
 
+  async getPlatforms(req, res) {
+    try {
+      const { category } = req.query;
+
+      if (category !== undefined) {
+        if (!isWorkerCategory(category)) {
+          return res.status(400).json({ error: 'category must be either rider or freelance' });
+        }
+
+        return res.json({
+          category,
+          platforms: PLATFORM_OPTIONS[category]
+        });
+      }
+
+      return res.json({
+        categories: Object.keys(PLATFORM_OPTIONS),
+        platforms: PLATFORM_OPTIONS
+      });
+    } catch (error) {
+      console.error('Get platforms error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+
   async updateWorkerProfile(req, res) {
     try {
       if (req.user.role !== ROLES.WORKER) {
@@ -433,14 +462,15 @@ class AuthController {
 
   async getOnPlatformWorkers(req, res) {
     try {
-      const { worker_id } = req.query;
+      const { worker_id, id } = req.query;
+      const lookupWorkerId = worker_id || id;
 
-      if (worker_id) {
-        if (!this.isObjectId(worker_id)) {
-          return res.status(400).json({ error: 'worker_id must be a valid Mongo ObjectId string' });
+      if (lookupWorkerId) {
+        if (!this.isObjectId(lookupWorkerId)) {
+          return res.status(400).json({ error: 'worker_id or id must be a valid Mongo ObjectId string' });
         }
 
-        const worker = await userRepository.findOnPlatformWorkerById(worker_id);
+        const worker = await userRepository.findOnPlatformWorkerById(lookupWorkerId);
         if (!worker) {
           return res.status(404).json({ error: 'Worker not found on platform' });
         }

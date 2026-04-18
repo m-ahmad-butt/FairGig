@@ -8,13 +8,15 @@ import { DEFAULT_LAHORE_LOCATION, reverseGeocode } from '../../utils/location';
 import {
   CATEGORY_OPTIONS,
   WORKER_ROLE,
+  DEFAULT_PLATFORM_CATALOG,
   getCategoryLabel,
   getDefaultPlatform,
   getDefaultTypeValue,
   getPlatformLabel,
   getPlatformOptions,
   getTypeLabel,
-  getTypeOptions
+  getTypeOptions,
+  normalizePlatformCatalog
 } from '../../utils/workerProfileOptions';
 
 function formatDate(dateString) {
@@ -32,6 +34,7 @@ export default function ProfilePage() {
   const [editing, setEditing] = useState(false);
   const [updating, setUpdating] = useState(false);
   const [detectingLocation, setDetectingLocation] = useState(false);
+  const [platformCatalog, setPlatformCatalog] = useState(DEFAULT_PLATFORM_CATALOG);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -52,7 +55,10 @@ export default function ProfilePage() {
   const categoryLocked = Boolean(user?.category);
   const selectedCategory = formData.category || CATEGORY_OPTIONS[0].value;
 
-  const platformOptions = useMemo(() => getPlatformOptions(selectedCategory), [selectedCategory]);
+  const platformOptions = useMemo(
+    () => getPlatformOptions(selectedCategory, platformCatalog),
+    [selectedCategory, platformCatalog]
+  );
   const typeOptions = useMemo(() => getTypeOptions(selectedCategory), [selectedCategory]);
 
   const mapPosition = useMemo(
@@ -66,6 +72,45 @@ export default function ProfilePage() {
   useEffect(() => {
     loadProfile();
   }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadPlatformCatalog() {
+      try {
+        const response = await authService.getPlatforms();
+
+        if (!isMounted) {
+          return;
+        }
+
+        setPlatformCatalog(normalizePlatformCatalog(response));
+      } catch (error) {
+        console.error('Failed to fetch platform options, using fallback:', error);
+      }
+    }
+
+    loadPlatformCatalog();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isWorker) {
+      return;
+    }
+
+    if (platformOptions.some((option) => option.value === formData.platform)) {
+      return;
+    }
+
+    setFormData((prev) => ({
+      ...prev,
+      platform: platformOptions[0]?.value || ''
+    }));
+  }, [formData.platform, isWorker, platformOptions]);
 
   const loadProfile = async () => {
     try {
@@ -83,7 +128,7 @@ export default function ProfilePage() {
         latitude: typeof profile.latitude === 'number' ? profile.latitude : null,
         longitude: typeof profile.longitude === 'number' ? profile.longitude : null,
         category: initialCategory,
-        platform: profile.platform || getDefaultPlatform(initialCategory),
+        platform: profile.platform || getDefaultPlatform(initialCategory, platformCatalog),
         vehicleType: profile.vehicleType || getDefaultTypeValue('rider'),
         freelancerType: profile.freelancerType || getDefaultTypeValue('freelance')
       });
@@ -108,10 +153,12 @@ export default function ProfilePage() {
       return;
     }
 
+    const nextPlatformOptions = getPlatformOptions(category, platformCatalog);
+
     setFormData((prev) => ({
       ...prev,
       category,
-      platform: getDefaultPlatform(category),
+      platform: nextPlatformOptions[0]?.value || getDefaultPlatform(category, platformCatalog),
       vehicleType: getDefaultTypeValue('rider'),
       freelancerType: getDefaultTypeValue('freelance')
     }));
@@ -192,7 +239,7 @@ export default function ProfilePage() {
       latitude: typeof user.latitude === 'number' ? user.latitude : null,
       longitude: typeof user.longitude === 'number' ? user.longitude : null,
       category: initialCategory,
-      platform: user.platform || getDefaultPlatform(initialCategory),
+      platform: user.platform || getDefaultPlatform(initialCategory, platformCatalog),
       vehicleType: user.vehicleType || getDefaultTypeValue('rider'),
       freelancerType: user.freelancerType || getDefaultTypeValue('freelance')
     });
@@ -319,7 +366,7 @@ export default function ProfilePage() {
                 {!editing && (
                   <button
                     onClick={() => setEditing(true)}
-                    className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700"
+                    className="px-4 py-2 text-sm font-medium text-white bg-black rounded-md hover:bg-gray-800"
                   >
                     Edit Profile
                   </button>
@@ -380,7 +427,7 @@ export default function ProfilePage() {
 
                     <div>
                       <label className="block text-sm font-medium text-gray-500 mb-1">Platform</label>
-                      <p className="text-lg text-gray-900">{getPlatformLabel(user?.category, user?.platform)}</p>
+                      <p className="text-lg text-gray-900">{getPlatformLabel(user?.category, user?.platform, platformCatalog)}</p>
                     </div>
 
                     <div>
@@ -396,9 +443,9 @@ export default function ProfilePage() {
                   </div>
                 )}
 
-                <div className="mt-6 bg-blue-50 border border-blue-200 rounded-md p-4">
-                  <h4 className="text-sm font-medium text-blue-900 mb-2">User ID</h4>
-                  <p className="text-xs text-blue-700 font-mono break-all">{user?.id}</p>
+                <div className="mt-6 bg-gray-50 border border-gray-200 rounded-md p-4">
+                  <h4 className="text-sm font-medium text-gray-900 mb-2">User ID</h4>
+                  <p className="text-xs text-gray-700 font-mono break-all">{user?.id}</p>
                 </div>
               </div>
             ) : (
@@ -414,7 +461,7 @@ export default function ProfilePage() {
                     value={formData.name}
                     onChange={handleInputChange}
                     required
-                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-black focus:border-black"
                   />
                 </div>
 
@@ -562,7 +609,7 @@ export default function ProfilePage() {
                         name="currentPassword"
                         value={formData.currentPassword}
                         onChange={handleInputChange}
-                        className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                        className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-black focus:border-black"
                       />
                     </div>
 
@@ -576,7 +623,7 @@ export default function ProfilePage() {
                         name="newPassword"
                         value={formData.newPassword}
                         onChange={handleInputChange}
-                        className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                        className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-black focus:border-black"
                       />
                     </div>
 
@@ -590,7 +637,7 @@ export default function ProfilePage() {
                         name="confirmPassword"
                         value={formData.confirmPassword}
                         onChange={handleInputChange}
-                        className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                        className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-black focus:border-black"
                       />
                     </div>
                   </div>
@@ -600,7 +647,7 @@ export default function ProfilePage() {
                   <button
                     type="submit"
                     disabled={updating}
-                    className="flex-1 px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 disabled:opacity-50"
+                    className="flex-1 px-4 py-2 text-sm font-medium text-white bg-black rounded-md hover:bg-gray-800 disabled:opacity-50"
                   >
                     {updating ? 'Updating...' : 'Save Changes'}
                   </button>
