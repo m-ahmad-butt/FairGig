@@ -489,7 +489,8 @@ export default function ProfilePage() {
                           type="text"
                           value={formData.city}
                           onChange={handleInputChange}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black"
+                          readOnly
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-700 focus:outline-none"
                         />
                       </div>
 
@@ -503,7 +504,8 @@ export default function ProfilePage() {
                           type="text"
                           value={formData.zone}
                           onChange={handleInputChange}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black"
+                          readOnly
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-700 focus:outline-none"
                         />
                       </div>
                     </div>
