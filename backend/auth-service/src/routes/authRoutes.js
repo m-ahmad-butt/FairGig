@@ -8,7 +8,7 @@ const {
   validateOTP,
   validateEmail,
   validateRefreshToken,
-  validateWorkerProfileUpdate
+  validateProfileUpdate
 } = require('../middleware/validation');
 
 router.post('/signup', validateSignup, authController.signup);
@@ -18,7 +18,7 @@ router.post('/login', validateLogin, authController.login);
 router.post('/refresh', validateRefreshToken, authController.refreshToken);
 router.get('/workers/on-platform', authController.getOnPlatformWorkers);
 router.get('/me', authenticateToken, authController.getMe);
-router.put('/profile', authenticateToken, authController.updateProfile);
+router.put('/profile', authenticateToken, validateProfileUpdate, authController.updateProfile);
 router.post('/logout', authenticateToken, authController.logout);
 
 module.exports = router;

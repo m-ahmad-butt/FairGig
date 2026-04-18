@@ -58,7 +58,11 @@ class UserRepository {
         zone: true,
         city: true,
         category: true,
+        platform: true,
         vehicleType: true,
+        freelancerType: true,
+        latitude: true,
+        longitude: true,
         createdAt: true
       }
     });
@@ -81,7 +85,11 @@ class UserRepository {
         zone: true,
         city: true,
         category: true,
+        platform: true,
         vehicleType: true,
+        freelancerType: true,
+        latitude: true,
+        longitude: true,
         createdAt: true,
         updatedAt: true
       },
@@ -107,7 +115,11 @@ class UserRepository {
         zone: true,
         city: true,
         category: true,
+        platform: true,
         vehicleType: true,
+        freelancerType: true,
+        latitude: true,
+        longitude: true,
         createdAt: true,
         updatedAt: true
       }

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import authService from '../../services/api/authService';
+import { isWorkerProfileComplete } from '../../utils/workerProfileOptions';
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -29,7 +30,9 @@ export default function LoginPage() {
 
       // Check if onboarding is needed
       const user = result.user;
-      const needsOnboarding = !user.emailVerified || !user.city || !user.zone;
+      const locationMissing = !user.city || !user.zone;
+      const workerProfileMissing = !isWorkerProfileComplete(user);
+      const needsOnboarding = !user.emailVerified || locationMissing || workerProfileMissing;
       
       if (needsOnboarding) {
         navigate('/onboarding', { state: { email: formData.email, role: user.role } });

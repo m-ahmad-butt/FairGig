@@ -1,377 +1,468 @@
-import { useState, useEffect, useRef } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import authService from '../../services/api/authService';
+import LocationPickerMap from '../../components/Map/LocationPickerMap';
+import { DEFAULT_LAHORE_LOCATION, reverseGeocode } from '../../utils/location';
+import {
+  CATEGORY_OPTIONS,
+  WORKER_ROLE,
+  getCategoryLabel,
+  getDefaultPlatform,
+  getDefaultTypeValue,
+  getPlatformOptions,
+  getTypeOptions
+} from '../../utils/workerProfileOptions';
 
-// Leaflet loaded via CDN in index.html
+function getDashboardPath(role) {
+  if (role === 'worker') {
+    return '/worker/dashboard';
+  }
+
+  if (role === 'verifier') {
+    return '/verifier/dashboard';
+  }
+
+  if (role === 'analyst' || role === 'advocate') {
+    return '/analyst/dashboard';
+  }
+
+  if (role === 'admin') {
+    return '/admin/dashboard';
+  }
+
+  return '/dashboard';
+}
+
+function getInitialWorkerCategory(profile) {
+  return profile.category || CATEGORY_OPTIONS[0].value;
+}
+
 export default function OnboardingPage() {
   const navigate = useNavigate();
-  const location = useLocation();
+  const [loadingProfile, setLoadingProfile] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [detectingLocation, setDetectingLocation] = useState(false);
   const [step, setStep] = useState(1);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [user, setUser] = useState(null);
+  const [formData, setFormData] = useState({
+    city: '',
+    zone: '',
+    latitude: null,
+    longitude: null,
+    category: CATEGORY_OPTIONS[0].value,
+    platform: getDefaultPlatform(CATEGORY_OPTIONS[0].value),
+    vehicleType: getDefaultTypeValue('rider'),
+    freelancerType: getDefaultTypeValue('freelance')
+  });
 
-  // Get initial data from location state or auth context
-  const initialEmail = location.state?.email || 'a***@gmail.com';
-  const initialRole = location.state?.role || 'worker';
-  // If role is worker, we treat them as a rider for this onboarding flow
-  const category = initialRole === 'worker' ? 'RIDER' : initialRole;
+  const isWorker = user?.role === WORKER_ROLE;
+  const categoryLocked = Boolean(user?.category);
+  const selectedCategory = formData.category || CATEGORY_OPTIONS[0].value;
 
-  const [userEmail, setUserEmail] = useState(initialEmail);
-  const [otp, setOtp] = useState('');
-  const [resendTimer, setResendTimer] = useState(0);
+  const platformOptions = useMemo(() => getPlatformOptions(selectedCategory), [selectedCategory]);
+  const typeOptions = useMemo(() => getTypeOptions(selectedCategory), [selectedCategory]);
 
-  // Location State
-  const [locationMethod, setLocationMethod] = useState(null); // 'auto' or 'manual'
-  const [city, setCity] = useState('');
-  const [zone, setZone] = useState('');
-  const [coords, setCoords] = useState(null);
-  
-  // Vehicle State
-  const [vehicleType, setVehicleType] = useState(null);
-  
-  // Map Reference
-  const mapRef = useRef(null);
-  const mapInstance = useRef(null);
-  const markerRef = useRef(null);
+  const mapPosition = useMemo(
+    () => ({
+      lat: formData.latitude ?? DEFAULT_LAHORE_LOCATION.lat,
+      lng: formData.longitude ?? DEFAULT_LAHORE_LOCATION.lng
+    }),
+    [formData.latitude, formData.longitude]
+  );
 
-  // Resend Timer Logic
   useEffect(() => {
-    let timer;
-    if (resendTimer > 0) {
-      timer = setInterval(() => setResendTimer((prev) => prev - 1), 1000);
-    }
-    return () => clearInterval(timer);
-  }, [resendTimer]);
+    loadProfile();
+  }, []);
 
-  const initMap = () => {
-    if (!window.L || !mapRef.current || mapInstance.current) return;
-    
-    // Pakistan center
-    const defaultCenter = [30.3753, 69.3451];
-    
-    mapInstance.current = window.L.map(mapRef.current).setView(defaultCenter, 5);
-    
-    window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '© OpenStreetMap contributors'
-    }).addTo(mapInstance.current);
-
-    markerRef.current = window.L.marker(defaultCenter, { draggable: true }).addTo(mapInstance.current);
-
-    markerRef.current.on('dragend', function (e) {
-      const position = e.target.getLatLng();
-      handleReverseGeocode(position.lat, position.lng);
-    });
-  };
-
-  // Leaflet map init when step 2 + manual location selected
-  useEffect(() => {
-    if (step === 2 && locationMethod === 'manual' && window.L) {
-      setTimeout(initMap, 100);
-    }
-  }, [step, locationMethod]);
-
-  const handleReverseGeocode = async (lat, lon) => {
-    setLoading(true);
+  const loadProfile = async () => {
     try {
-      const response = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`);
-      const data = await response.json();
-      
-      const cityName = data.address.city || data.address.town || data.address.village || '';
-      const zoneName = data.address.suburb || data.address.city_district || data.address.neighbourhood || '';
-      
-      setCity(cityName);
-      setZone(zoneName);
-      setCoords({ lat, lon });
+      const profile = await authService.getMe();
+      const initialCategory = getInitialWorkerCategory(profile);
+
+      setUser(profile);
+      setFormData({
+        city: profile.city || '',
+        zone: profile.zone || '',
+        latitude: typeof profile.latitude === 'number' ? profile.latitude : null,
+        longitude: typeof profile.longitude === 'number' ? profile.longitude : null,
+        category: initialCategory,
+        platform: profile.platform || getDefaultPlatform(initialCategory),
+        vehicleType: profile.vehicleType || getDefaultTypeValue('rider'),
+        freelancerType: profile.freelancerType || getDefaultTypeValue('freelance')
+      });
     } catch (error) {
-      toast.error('Failed to get location details');
+      toast.error(`Failed to load profile: ${error.message}`);
+      navigate('/login');
     } finally {
-      setLoading(false);
+      setLoadingProfile(false);
     }
   };
 
-  const handleAutoLocation = () => {
-    setLocationMethod('auto');
-    setLoading(true);
-    
+  const handleUseCurrentLocation = () => {
     if (!navigator.geolocation) {
-      toast.error('Geolocation not supported');
-      setLoading(false);
+      toast.error('Geolocation is not supported on this device');
       return;
     }
 
+    setDetectingLocation(true);
+
     navigator.geolocation.getCurrentPosition(
-      (position) => {
-        handleReverseGeocode(position.coords.latitude, position.coords.longitude);
+      async (position) => {
+        const lat = position.coords.latitude;
+        const lng = position.coords.longitude;
+
+        setFormData((prev) => ({
+          ...prev,
+          latitude: lat,
+          longitude: lng
+        }));
+
+        try {
+          const geoData = await reverseGeocode(lat, lng);
+          setFormData((prev) => ({
+            ...prev,
+            city: geoData.city || prev.city,
+            zone: geoData.zone || prev.zone
+          }));
+        } catch (error) {
+          toast.error('Unable to resolve city and zone from current location');
+        } finally {
+          setDetectingLocation(false);
+        }
       },
-      (error) => {
-        toast.error('Geolocation permission denied');
-        setLoading(false);
+      () => {
+        toast.error('Location permission denied');
+        setDetectingLocation(false);
       }
     );
   };
 
-  const handleVerifyOTP = async (e) => {
-    e.preventDefault();
-    if (otp.length !== 6) {
-      toast.error('Enter 6-digit OTP');
+  const handleMapPositionChange = async (position) => {
+    setFormData((prev) => ({
+      ...prev,
+      latitude: position.lat,
+      longitude: position.lng
+    }));
+
+    try {
+      const geoData = await reverseGeocode(position.lat, position.lng);
+      setFormData((prev) => ({
+        ...prev,
+        city: geoData.city || prev.city,
+        zone: geoData.zone || prev.zone
+      }));
+    } catch (error) {
+      toast.error('Unable to resolve city and zone for selected location');
+    }
+  };
+
+  const handleInputChange = (event) => {
+    const { name, value } = event.target;
+    setFormData((prev) => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  const handleCategoryChange = (category) => {
+    if (categoryLocked) {
       return;
     }
-    
-    setLoading(true);
-    try {
-      await authService.verifyOTP(userEmail, otp);
-      toast.success('Email verified');
-      setStep(2);
-    } catch (error) {
-      toast.error(error.message || 'OTP verification failed');
-    } finally {
-      setLoading(false);
-    }
+
+    setFormData((prev) => ({
+      ...prev,
+      category,
+      platform: getDefaultPlatform(category),
+      vehicleType: getDefaultTypeValue('rider'),
+      freelancerType: getDefaultTypeValue('freelance')
+    }));
   };
 
-  const handleResendOTP = async () => {
-    if (resendTimer > 0) return;
-    
-    setLoading(true);
-    try {
-      await authService.resendOTP(userEmail);
-      setResendTimer(60);
-      toast.success('OTP Resent');
-    } catch (error) {
-      toast.error(error.message || 'Failed to resend OTP');
-    } finally {
-      setLoading(false);
+  const validateWorkerSelection = () => {
+    if (!formData.category) {
+      return 'Please select worker category';
     }
+
+    if (!formData.platform) {
+      return 'Please select platform';
+    }
+
+    if (formData.category === 'rider' && !formData.vehicleType) {
+      return 'Please select vehicle type';
+    }
+
+    if (formData.category === 'freelance' && !formData.freelancerType) {
+      return 'Please select freelancer type';
+    }
+
+    return null;
   };
 
-  const handleFinish = async () => {
-    setLoading(true);
+  const submitOnboarding = async () => {
+    if (!formData.city.trim() || !formData.zone.trim()) {
+      toast.error('City and zone are required');
+      return;
+    }
+
+    if (isWorker) {
+      const workerValidationError = validateWorkerSelection();
+      if (workerValidationError) {
+        toast.error(workerValidationError);
+        return;
+      }
+    }
+
     const payload = {
-      emailVerified: true,
-      city,
-      zone,
-      vehicleType: category === 'RIDER' ? vehicleType : undefined
+      city: formData.city.trim(),
+      zone: formData.zone.trim()
     };
 
-    try {
-      const token = localStorage.getItem('accessToken');
-      // Using /api/users/me as requested
-      const baseUrl = import.meta.env.VITE_API_GATEWAY_URL || 'http://localhost:8080';
-      const response = await fetch(`${baseUrl}/api/users/me`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(payload)
-      });
+    if (typeof formData.latitude === 'number' && typeof formData.longitude === 'number') {
+      payload.latitude = formData.latitude;
+      payload.longitude = formData.longitude;
+    }
 
-      if (!response.ok) throw new Error('Update failed');
-      
-      setStep(4); // Finish screen
-      setTimeout(() => navigate('/worker/dashboard'), 2000);
+    if (isWorker) {
+      if (!categoryLocked) {
+        payload.category = formData.category;
+      }
+
+      payload.platform = formData.platform;
+
+      if (formData.category === 'rider') {
+        payload.vehicleType = formData.vehicleType;
+      }
+
+      if (formData.category === 'freelance') {
+        payload.freelancerType = formData.freelancerType;
+      }
+    }
+
+    setSaving(true);
+
+    try {
+      await authService.updateProfile(payload);
+      toast.success('Onboarding completed successfully');
+      navigate(getDashboardPath(user.role));
     } catch (error) {
       toast.error(error.message);
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   };
 
-  const renderProgress = () => {
-    const totalSteps = category === 'RIDER' ? 3 : 2;
-    const progress = (step / (totalSteps + 1)) * 100;
+  if (loadingProfile) {
     return (
-      <div className="w-full bg-gray-800 h-1 mb-8 rounded-full overflow-hidden">
-        <div 
-          className="bg-white h-full transition-all duration-500 ease-out" 
-          style={{ width: `${progress}%` }}
-        />
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-gray-600">Loading onboarding...</div>
       </div>
     );
-  };
+  }
 
   return (
-    <div className="min-h-screen bg-[#111] text-white flex flex-col items-center px-4 py-8">
-      <div className="w-full max-w-md">
-        {step < 4 && renderProgress()}
-
-        {step === 1 && (
-          <div className="space-y-6 animate-in fade-in duration-500">
-            <div className="text-center">
-              <h2 className="text-2xl font-bold mb-2">Verify Email</h2>
-              <p className="text-gray-400">Code sent to <span className="text-white">{userEmail}</span></p>
-            </div>
-            
-            <form onSubmit={handleVerifyOTP} className="space-y-6">
-              <input
-                type="text"
-                maxLength={6}
-                value={otp}
-                onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
-                className="w-full bg-[#1e1e1e] border-none text-center text-3xl tracking-[1em] py-4 rounded-xl focus:ring-2 focus:ring-gray-600 font-mono"
-                placeholder="000000"
-              />
-              
-              <button
-                type="submit"
-                className="w-full bg-white text-black font-bold py-4 rounded-xl hover:bg-gray-200 transition-colors"
-              >
-                Continue
-              </button>
-            </form>
-
-            <div className="text-center">
-              <button
-                onClick={handleResendOTP}
-                disabled={resendTimer > 0}
-                className="text-gray-400 hover:text-white disabled:opacity-50 transition-colors"
-              >
-                {resendTimer > 0 ? `Resend in ${resendTimer}s` : 'Resend OTP'}
-              </button>
-            </div>
+    <div className="min-h-screen bg-gray-50 py-8 px-4">
+      <div className="max-w-3xl mx-auto">
+        <div className="bg-white rounded-xl shadow border border-gray-100 p-6 md:p-8">
+          <div className="mb-6">
+            <h1 className="text-2xl font-bold text-gray-900">Complete your profile</h1>
+            <p className="text-gray-600 mt-1">Set your location and worker details to continue.</p>
           </div>
-        )}
 
-        {step === 2 && (
-          <div className="space-y-6 animate-in slide-in-from-right duration-500">
-            <h2 className="text-2xl font-bold text-center">Where do you work?</h2>
-            
-            {!locationMethod ? (
-              <div className="grid gap-4">
-                <button
-                  onClick={handleAutoLocation}
-                  className="bg-[#1e1e1e] p-6 rounded-2xl border border-transparent hover:border-gray-600 transition-all text-left flex items-center gap-4"
-                >
-                  <div className="w-12 h-12 bg-white/5 rounded-xl flex items-center justify-center">
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                    </svg>
-                  </div>
-                  <div>
-                    <h3 className="font-bold">Use my location</h3>
-                    <p className="text-sm text-gray-400">Auto-detect city & zone</p>
-                  </div>
-                </button>
+          <div className="flex items-center gap-3 mb-6">
+            <div className={`h-2 flex-1 rounded-full ${step >= 1 ? 'bg-black' : 'bg-gray-200'}`} />
+            <div className={`h-2 flex-1 rounded-full ${step >= 2 ? 'bg-black' : 'bg-gray-200'}`} />
+          </div>
 
-                <button
-                  onClick={() => setLocationMethod('manual')}
-                  className="bg-[#1e1e1e] p-6 rounded-2xl border border-transparent hover:border-gray-600 transition-all text-left flex items-center gap-4"
-                >
-                  <div className="w-12 h-12 bg-white/5 rounded-xl flex items-center justify-center">
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7l5-2.5 5.553 2.776a1 1 0 01.447.894v10.764a1 1 0 01-1.447.894L15 17l-6 3z" />
-                    </svg>
-                  </div>
-                  <div>
-                    <h3 className="font-bold">Drop a pin manually</h3>
-                    <p className="text-sm text-gray-400">Select from map</p>
-                  </div>
-                </button>
+          {step === 1 && (
+            <div className="space-y-6">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900">Location</h2>
+                <p className="text-sm text-gray-600">Default map center is Pakistan, Lahore.</p>
               </div>
-            ) : (
-              <div className="space-y-4">
-                {locationMethod === 'manual' && (
-                  <div className="h-64 bg-[#1e1e1e] rounded-2xl overflow-hidden relative border border-gray-800">
-                    <div ref={mapRef} className="h-full w-full" />
-                  </div>
+
+              <div className="h-72 rounded-lg overflow-hidden border border-gray-200">
+                <LocationPickerMap position={mapPosition} onPositionChange={handleMapPositionChange} />
+              </div>
+
+              <button
+                type="button"
+                onClick={handleUseCurrentLocation}
+                disabled={detectingLocation}
+                className="px-4 py-2 text-sm font-medium text-white bg-black rounded-md hover:bg-gray-800 disabled:opacity-60"
+              >
+                {detectingLocation ? 'Detecting location...' : 'Use Current Location'}
+              </button>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="city">
+                    City
+                  </label>
+                  <input
+                    id="city"
+                    name="city"
+                    type="text"
+                    value={formData.city}
+                    onChange={handleInputChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black"
+                    placeholder="Lahore"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="zone">
+                    Zone / Area
+                  </label>
+                  <input
+                    id="zone"
+                    name="zone"
+                    type="text"
+                    value={formData.zone}
+                    onChange={handleInputChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black"
+                    placeholder="Gulberg"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end">
+                {isWorker ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!formData.city.trim() || !formData.zone.trim()) {
+                        toast.error('City and zone are required');
+                        return;
+                      }
+                      setStep(2);
+                    }}
+                    className="px-5 py-2.5 text-sm font-medium text-white bg-black rounded-md hover:bg-gray-800"
+                  >
+                    Next
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={submitOnboarding}
+                    disabled={saving}
+                    className="px-5 py-2.5 text-sm font-medium text-white bg-black rounded-md hover:bg-gray-800 disabled:opacity-60"
+                  >
+                    {saving ? 'Saving...' : 'Finish'}
+                  </button>
                 )}
-                
-                {loading ? (
-                  <div className="flex justify-center py-8">
-                    <div className="w-8 h-8 border-4 border-white/20 border-t-white rounded-full animate-spin" />
+              </div>
+            </div>
+          )}
+
+          {step === 2 && isWorker && (
+            <div className="space-y-6">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900">Worker details</h2>
+                <p className="text-sm text-gray-600">Category cannot be changed after it is set.</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Category</label>
+                {categoryLocked ? (
+                  <div className="px-3 py-2 rounded-md border border-gray-200 bg-gray-50 text-gray-700">
+                    {getCategoryLabel(formData.category)}
                   </div>
                 ) : (
-                  <div className="grid gap-4">
-                    <div>
-                      <label className="text-xs text-gray-500 uppercase tracking-widest mb-1 block">City</label>
-                      <input
-                        type="text"
-                        value={city}
-                        onChange={(e) => setCity(e.target.value)}
-                        className="w-full bg-[#1e1e1e] border-none py-3 px-4 rounded-xl focus:ring-1 focus:ring-gray-600"
-                        placeholder="e.g. Lahore"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-xs text-gray-500 uppercase tracking-widest mb-1 block">Zone / Area</label>
-                      <input
-                        type="text"
-                        value={zone}
-                        onChange={(e) => setZone(e.target.value)}
-                        className="w-full bg-[#1e1e1e] border-none py-3 px-4 rounded-xl focus:ring-1 focus:ring-gray-600"
-                        placeholder="e.g. Gulberg"
-                      />
-                    </div>
-                    <button
-                      onClick={() => category === 'RIDER' ? setStep(3) : handleFinish()}
-                      disabled={!city}
-                      className="w-full bg-white text-black font-bold py-4 rounded-xl mt-4 hover:bg-gray-200 disabled:opacity-50 transition-all"
-                    >
-                      Next Step
-                    </button>
-                    <button 
-                      onClick={() => setLocationMethod(null)}
-                      className="text-gray-500 text-sm hover:text-white"
-                    >
-                      Change method
-                    </button>
+                  <div className="grid grid-cols-2 gap-3">
+                    {CATEGORY_OPTIONS.map((categoryOption) => (
+                      <button
+                        key={categoryOption.value}
+                        type="button"
+                        onClick={() => handleCategoryChange(categoryOption.value)}
+                        className={`rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
+                          formData.category === categoryOption.value
+                            ? 'border-black bg-black text-white'
+                            : 'border-gray-200 text-gray-700 hover:border-gray-300'
+                        }`}
+                      >
+                        {categoryOption.label}
+                      </button>
+                    ))}
                   </div>
                 )}
               </div>
-            )}
-          </div>
-        )}
 
-        {step === 3 && category === 'RIDER' && (
-          <div className="space-y-6 animate-in slide-in-from-right duration-500">
-            <h2 className="text-2xl font-bold text-center">What do you ride?</h2>
-            
-            <div className="grid grid-cols-2 gap-4">
-              {[
-                { id: 'motorcycle', label: 'Motorcycle', icon: '🏍️' },
-                { id: 'rickshaw', label: 'Rickshaw', icon: '🛺' },
-                { id: 'car', label: 'Car', icon: '🚗' },
-                { id: 'van', label: 'Van / Pickup', icon: '🚚' },
-                { id: 'bicycle', label: 'Bicycle', icon: '🚲' }
-              ].map((v) => (
-                <button
-                  key={v.id}
-                  onClick={() => setVehicleType(v.id)}
-                  className={`p-6 rounded-2xl border transition-all flex flex-col items-center gap-3 ${
-                    vehicleType === v.id 
-                      ? 'bg-white text-black border-white' 
-                      : 'bg-[#1e1e1e] text-white border-transparent hover:border-gray-600'
-                  }`}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="platform">
+                  Platform
+                </label>
+                <select
+                  id="platform"
+                  name="platform"
+                  value={formData.platform}
+                  onChange={handleInputChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black bg-white"
                 >
-                  <span className="text-4xl">{v.icon}</span>
-                  <span className="font-medium text-sm text-center">{v.label}</span>
+                  {platformOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="workerType">
+                  {formData.category === 'rider' ? 'Vehicle Type' : 'Freelancer Type'}
+                </label>
+
+                {formData.category === 'rider' ? (
+                  <select
+                    id="workerType"
+                    name="vehicleType"
+                    value={formData.vehicleType}
+                    onChange={handleInputChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black bg-white"
+                  >
+                    {typeOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <select
+                    id="workerType"
+                    name="freelancerType"
+                    value={formData.freelancerType}
+                    onChange={handleInputChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black bg-white"
+                  >
+                    {typeOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+
+              <div className="flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={() => setStep(1)}
+                  className="px-5 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+                >
+                  Back
                 </button>
-              ))}
+                <button
+                  type="button"
+                  onClick={submitOnboarding}
+                  disabled={saving}
+                  className="px-5 py-2.5 text-sm font-medium text-white bg-black rounded-md hover:bg-gray-800 disabled:opacity-60"
+                >
+                  {saving ? 'Saving...' : 'Finish'}
+                </button>
+              </div>
             </div>
-
-            <button
-              onClick={handleFinish}
-              disabled={!vehicleType || loading}
-              className="w-full bg-white text-black font-bold py-4 rounded-xl mt-4 hover:bg-gray-200 disabled:opacity-50 transition-all"
-            >
-              {loading ? 'Saving...' : 'Complete Profile'}
-            </button>
-          </div>
-        )}
-
-        {step === 4 && (
-          <div className="flex flex-col items-center justify-center py-20 animate-in zoom-in duration-500">
-            <div className="w-20 h-20 bg-green-500 rounded-full flex items-center justify-center mb-6 shadow-lg shadow-green-500/20">
-              <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-              </svg>
-            </div>
-            <h2 className="text-3xl font-bold mb-2">You're all set!</h2>
-            <p className="text-gray-400">Redirecting to your dashboard...</p>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </div>
   );
