@@ -48,12 +48,31 @@ function getExtensionFromMime(fileType) {
   return null;
 }
 
+function normalizeBucketName(value) {
+  if (value === undefined || value === null) {
+    return '';
+  }
+
+  return String(value)
+    .trim()
+    .replace(/^s3:\/\//i, '')
+    .replace(/\/+$/g, '');
+}
+
 function buildS3Config() {
-  const bucket = getFirstDefinedEnv(['AWS_S3_BUCKET', 'S3_BUCKET', 'EVIDENCE_S3_BUCKET']);
+  const bucket = normalizeBucketName(
+    getFirstDefinedEnv(['AWS_S3_BUCKET', 'S3_BUCKET', 'EVIDENCE_S3_BUCKET'])
+  );
   const region = getFirstDefinedEnv(['AWS_REGION', 'S3_REGION', 'AWS_DEFAULT_REGION'], 'ap-south-1');
 
   if (!bucket) {
     const configError = new Error('S3 bucket is not configured. Set AWS_S3_BUCKET in environment variables.');
+    configError.code = 'CONFIG_ERROR';
+    throw configError;
+  }
+
+  if (bucket.includes('/')) {
+    const configError = new Error('Invalid S3 bucket name. Use bucket name only (example: fast-ex-3059), without trailing slash or path.');
     configError.code = 'CONFIG_ERROR';
     throw configError;
   }
