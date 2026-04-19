@@ -54,10 +54,18 @@ class AdminController {
         return res.status(400).json({ error: 'Approval token is required' });
       }
 
-      const userId = Buffer.from(token, 'base64').toString('utf-8');
+      let userId;
+      try {
+        userId = Buffer.from(token, 'base64').toString('utf-8');
+      } catch (e) {
+        console.error('Failed to decode approval token:', e);
+        return res.status(400).json({ error: 'Invalid approval token format' });
+      }
 
-      if (!isObjectId(userId)) {
-        return res.status(400).json({ error: 'Invalid approval token' });
+      console.log(`Approving user by token. Decoded userId: "${userId}"`);
+
+      if (!userId || !isObjectId(userId)) {
+        return res.status(400).json({ error: 'Invalid approval token contents' });
       }
 
       const user = await userRepository.findById(userId);

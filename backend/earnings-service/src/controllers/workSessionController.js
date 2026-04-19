@@ -35,7 +35,11 @@ class WorkSessionController {
       }
 
       console.error('Create work session error:', error);
-      return res.status(500).json({ error: 'Internal server error' });
+      return res.status(500).json({ 
+        error: 'Internal server error', 
+        details: error.message,
+        code: error.code 
+      });
     }
   }
 
@@ -106,7 +110,11 @@ class WorkSessionController {
       }
 
       console.error('List work sessions error:', error);
-      return res.status(500).json({ error: 'Internal server error' });
+      return res.status(500).json({ 
+        error: 'Internal server error',
+        details: error.message,
+        code: error.code
+      });
     }
   }
 

@@ -30,7 +30,7 @@ class EmailService {
   }
 
   async sendAdminApprovalNotification(adminEmail, user) {
-    const token = Buffer.from(user.id, 'utf-8').toString('base64');
+    const token = Buffer.from(user.id.toString(), 'utf-8').toString('base64');
     const rawPublicUrl = process.env.PUBLIC_URL || 'http://localhost:8080';
     const normalizedPublicUrl = rawPublicUrl.replace(/\/$/, '');
     const gatewayBaseUrl = normalizedPublicUrl.replace(/\/api\/auth$/i, '');
