@@ -37,7 +37,7 @@ function requireRoles(allowedRoles) {
 }
 
 function canModerate(user) {
-  return user.role === ROLES.ADVOCATE || user.role === ROLES.ADMIN;
+  return user.role === ROLES.ADVOCATE || user.role === ROLES.ANALYST || user.role === ROLES.ADMIN;
 }
 
 module.exports = {

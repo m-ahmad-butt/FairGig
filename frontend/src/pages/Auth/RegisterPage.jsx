@@ -28,7 +28,7 @@ const ROLES = [
     badge: 'Requires approval'
   },
   {
-    id: 'analyst',
+    id: 'advocate',
     label: 'Advocate',
     icon: (
       <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">

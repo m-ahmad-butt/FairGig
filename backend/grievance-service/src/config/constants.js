@@ -1,6 +1,7 @@
 const ROLES = {
   WORKER: 'worker',
   ADVOCATE: 'advocate',
+  ANALYST: 'analyst',
   ADMIN: 'admin'
 };
 

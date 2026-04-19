@@ -8,7 +8,8 @@ import {
   MessageSquare,
   RefreshCw,
   SendHorizontal,
-  ShieldAlert
+  ShieldAlert,
+  X
 } from 'lucide-react';
 import authService from '../../services/api/authService';
 import communityService from '../../services/api/communityService';
@@ -387,11 +388,23 @@ export default function WorkerCommunityPage() {
                         onChange={handleImageSelection}
                       />
                       {previewImage && (
-                        <img
-                          src={previewImage}
-                          alt="Post preview"
-                          className="mt-3 max-h-44 w-full rounded-md border border-zinc-200 object-cover"
-                        />
+                        <div className="relative mt-3">
+                          <img
+                            src={previewImage}
+                            alt="Post preview"
+                            className="max-h-44 w-full rounded-md border border-zinc-200 object-cover"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setPreviewImage('');
+                              setFormData((prev) => ({ ...prev, image_url: '' }));
+                            }}
+                            className="absolute right-2 top-2 rounded-full bg-zinc-800/70 p-1 text-white hover:bg-zinc-900"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -542,11 +555,30 @@ export default function WorkerCommunityPage() {
                             </p>
                           )}
 
-                          <div className="mt-4 flex items-center gap-3">
+                          <div className="mt-4 flex flex-wrap items-center gap-3">
                             <Button variant="ghost" size="sm" onClick={() => toggleComments(post.id)}>
                               <MessageSquare className="h-4 w-4" />
                               {post.comment_count} comments
                             </Button>
+
+                            {(user?.role === 'advocate' || user?.role === 'analyst') && post.status === 'pending' && (
+                              <div className="flex gap-2 border-l border-zinc-200 pl-3">
+                                <Button
+                                  variant="success"
+                                  size="sm"
+                                  onClick={() => handleModeration(post.id, 'approved')}
+                                >
+                                  Approve
+                                </Button>
+                                <Button
+                                  variant="destructive"
+                                  size="sm"
+                                  onClick={() => handleModeration(post.id, 'rejected')}
+                                >
+                                  Reject
+                                </Button>
+                              </div>
+                            )}
                           </div>
 
                           {isCommentsOpen && (
