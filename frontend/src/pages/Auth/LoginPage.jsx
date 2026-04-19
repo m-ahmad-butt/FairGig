@@ -1,45 +1,45 @@
-import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import toast from 'react-hot-toast';
-import authService from '../../services/api/authService';
-import { isWorkerProfileComplete } from '../../utils/workerProfileOptions';
-import FairGigLogo from '../../components/Brand/FairGigLogo';
+import { useState } from "react";
+import { useNavigate, Link } from "react-router-dom";
+import toast from "react-hot-toast";
+import authService from "../../services/api/authService";
+import { isWorkerProfileComplete } from "../../utils/workerProfileOptions";
+import FairGigLogo from "../../components/Brand/FairGigLogo";
 
 export default function LoginPage() {
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
-    email: '',
-    password: ''
+    email: "",
+    password: "",
   });
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const getDashboardPath = (role) => {
-    const normalizedRole = String(role || '').toLowerCase();
+    const normalizedRole = String(role || "").toLowerCase();
 
-    if (normalizedRole === 'admin') {
-      return '/admin/dashboard';
+    if (normalizedRole === "admin") {
+      return "/admin/dashboard";
     }
 
-    if (normalizedRole === 'worker') {
-      return '/worker/dashboard';
+    if (normalizedRole === "worker") {
+      return "/worker/dashboard";
     }
 
-    if (normalizedRole === 'verifier') {
-      return '/verifier/dashboard';
+    if (normalizedRole === "verifier") {
+      return "/verifier/dashboard";
     }
 
-    if (normalizedRole === 'analyst' || normalizedRole === 'advocate') {
-      return '/analyst/dashboard';
+    if (normalizedRole === "advocate") {
+      return "/advocate/dashboard";
     }
 
-    return '/profile';
+    return "/profile";
   };
 
   const handleChange = (e) => {
     setFormData({
       ...formData,
-      [e.target.name]: e.target.value
+      [e.target.name]: e.target.value,
     });
   };
 
@@ -54,15 +54,20 @@ export default function LoginPage() {
 
       // Check if onboarding is needed
       const user = result.user;
-      const isWorkerRole = String(user.role || '').toLowerCase() === 'worker';
+      const isWorkerRole = String(user.role || "").toLowerCase() === "worker";
       const locationMissing = isWorkerRole && (!user.city || !user.zone);
-      const workerProfileMissing = isWorkerRole && !isWorkerProfileComplete(user);
+      const workerProfileMissing =
+        isWorkerRole && !isWorkerProfileComplete(user);
       // Login is only allowed for verified users; treat missing emailVerified as verified.
       const emailNotVerified = user.emailVerified === false;
-      const needsOnboarding = isWorkerRole && (emailNotVerified || locationMissing || workerProfileMissing);
+      const needsOnboarding =
+        isWorkerRole &&
+        (emailNotVerified || locationMissing || workerProfileMissing);
 
       if (needsOnboarding) {
-        navigate('/onboarding', { state: { email: formData.email, role: user.role } });
+        navigate("/onboarding", {
+          state: { email: formData.email, role: user.role },
+        });
       } else {
         navigate(getDashboardPath(user.role));
       }
@@ -86,7 +91,10 @@ export default function LoginPage() {
 
         <form className="space-y-5" onSubmit={handleSubmit}>
           <div>
-            <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+            <label
+              htmlFor="email"
+              className="block text-sm font-medium text-gray-700 mb-1"
+            >
               Email address
             </label>
             <input
@@ -102,14 +110,17 @@ export default function LoginPage() {
           </div>
 
           <div>
-            <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
+            <label
+              htmlFor="password"
+              className="block text-sm font-medium text-gray-700 mb-1"
+            >
               Password
             </label>
             <div className="relative">
               <input
                 id="password"
                 name="password"
-                type={showPassword ? 'text' : 'password'}
+                type={showPassword ? "text" : "password"}
                 required
                 value={formData.password}
                 onChange={handleChange}
@@ -120,10 +131,16 @@ export default function LoginPage() {
                 type="button"
                 onClick={() => setShowPassword((prev) => !prev)}
                 className="absolute inset-y-0 right-0 flex items-center px-3 text-gray-500 hover:text-gray-800 transition-colors"
-                aria-label={showPassword ? 'Hide password' : 'Show password'}
+                aria-label={showPassword ? "Hide password" : "Show password"}
               >
                 {showPassword ? (
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <svg
+                    className="w-5 h-5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
+                  >
                     <path
                       strokeLinecap="round"
                       strokeLinejoin="round"
@@ -132,7 +149,13 @@ export default function LoginPage() {
                     />
                   </svg>
                 ) : (
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <svg
+                    className="w-5 h-5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
+                  >
                     <path
                       strokeLinecap="round"
                       strokeLinejoin="round"
@@ -147,7 +170,10 @@ export default function LoginPage() {
           </div>
 
           <div className="flex items-center justify-between">
-            <Link to="/forgot-password" className="text-sm text-gray-600 hover:text-black transition-colors">
+            <Link
+              to="/forgot-password"
+              className="text-sm text-gray-600 hover:text-black transition-colors"
+            >
               Forgot password?
             </Link>
           </div>
@@ -157,12 +183,15 @@ export default function LoginPage() {
             disabled={loading}
             className="w-full py-3 px-4 bg-black text-white font-medium rounded-lg hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2 disabled:opacity-50 transition-colors"
           >
-            {loading ? 'Signing in...' : 'Sign In'}
+            {loading ? "Signing in..." : "Sign In"}
           </button>
 
           <div className="text-center">
             <span className="text-gray-600">Don't have an account? </span>
-            <Link to="/register" className="text-black font-medium hover:underline">
+            <Link
+              to="/register"
+              className="text-black font-medium hover:underline"
+            >
               Sign up
             </Link>
           </div>

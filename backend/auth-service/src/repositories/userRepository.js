@@ -32,7 +32,7 @@ class UserRepository {
       where: {
         status: 'pending',
         emailVerified: true,
-        role: { in: ['verifier', 'analyst'] }
+        role: { in: ['verifier', 'advocate'] }
       },
       select: {
         id: true,

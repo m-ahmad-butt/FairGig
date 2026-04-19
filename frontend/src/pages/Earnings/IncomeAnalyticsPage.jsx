@@ -1,12 +1,12 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { useEffect, useMemo, useState } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import {
   ArrowDownRight,
   ArrowUpRight,
   Download,
   ShieldCheck,
-  TriangleAlert
-} from 'lucide-react';
+  TriangleAlert,
+} from "lucide-react";
 import {
   Bar,
   CartesianGrid,
@@ -15,22 +15,22 @@ import {
   ResponsiveContainer,
   Tooltip,
   XAxis,
-  YAxis
-} from 'recharts';
-import earningsService from '../../services/api/earningsService';
-import authService from '../../services/api/authService';
-import Navbar from '../../components/Navigation/Navbar';
+  YAxis,
+} from "recharts";
+import earningsService from "../../services/api/earningsService";
+import authService from "../../services/api/authService";
+import Navbar from "../../components/Navigation/Navbar";
 
 const RANGE_OPTIONS = [
-  { value: '30', label: 'Last 30 Days' },
-  { value: '90', label: 'Last 90 Days' },
-  { value: '180', label: 'Last 6 Months' },
-  { value: '365', label: 'Last 12 Months' }
+  { value: "30", label: "Last 30 Days" },
+  { value: "90", label: "Last 90 Days" },
+  { value: "180", label: "Last 6 Months" },
+  { value: "365", label: "Last 12 Months" },
 ];
 
 const TREND_OPTIONS = [
-  { value: 'weekly', label: 'Weekly' },
-  { value: 'monthly', label: 'Monthly' }
+  { value: "weekly", label: "Weekly" },
+  { value: "monthly", label: "Monthly" },
 ];
 
 function toNumber(value) {
@@ -55,7 +55,7 @@ function parseDate(value) {
 }
 
 function formatCurrency(value) {
-  return `PKR ${Math.round(toNumber(value)).toLocaleString('en-PK')}`;
+  return `PKR ${Math.round(toNumber(value)).toLocaleString("en-PK")}`;
 }
 
 function formatHourlyRate(value) {
@@ -63,8 +63,8 @@ function formatHourlyRate(value) {
 }
 
 function formatPlatformLabel(value) {
-  return String(value || 'Other')
-    .replace(/[_-]+/g, ' ')
+  return String(value || "Other")
+    .replace(/[_-]+/g, " ")
     .replace(/\b\w/g, (character) => character.toUpperCase());
 }
 
@@ -107,7 +107,9 @@ function getMedian(values) {
 }
 
 function mergeSessionsWithEarnings(sessions, earnings) {
-  const earningsBySessionId = new Map((earnings || []).map((item) => [item.session_id, item]));
+  const earningsBySessionId = new Map(
+    (earnings || []).map((item) => [item.session_id, item]),
+  );
 
   return (sessions || [])
     .map((session) => {
@@ -133,7 +135,7 @@ function mergeSessionsWithEarnings(sessions, earnings) {
         deductions,
         net,
         deductionRate: gross > 0 ? (deductions / gross) * 100 : 0,
-        isVerified: evidence?.verified === true
+        isVerified: evidence?.verified === true,
       };
     })
     .filter(Boolean)
@@ -160,7 +162,10 @@ function buildTrendData(records, mode) {
   const grouped = new Map();
 
   for (const record of records) {
-    const bucketStart = mode === 'weekly' ? getStartOfWeek(record.sessionDate) : getStartOfMonth(record.sessionDate);
+    const bucketStart =
+      mode === "weekly"
+        ? getStartOfWeek(record.sessionDate)
+        : getStartOfMonth(record.sessionDate);
     const key = bucketStart.toISOString().slice(0, 10);
 
     if (!grouped.has(key)) {
@@ -168,7 +173,7 @@ function buildTrendData(records, mode) {
         key,
         date: bucketStart,
         net: 0,
-        totalHours: 0
+        totalHours: 0,
       });
     }
 
@@ -183,10 +188,16 @@ function buildTrendData(records, mode) {
     .map((entry) => ({
       ...entry,
       label:
-        mode === 'weekly'
-          ? entry.date.toLocaleDateString('en-PK', { month: 'short', day: 'numeric' })
-          : entry.date.toLocaleDateString('en-PK', { month: 'short', year: '2-digit' }),
-      hourlyRate: entry.totalHours > 0 ? entry.net / entry.totalHours : 0
+        mode === "weekly"
+          ? entry.date.toLocaleDateString("en-PK", {
+              month: "short",
+              day: "numeric",
+            })
+          : entry.date.toLocaleDateString("en-PK", {
+              month: "short",
+              year: "2-digit",
+            }),
+      hourlyRate: entry.totalHours > 0 ? entry.net / entry.totalHours : 0,
     }));
 }
 
@@ -196,14 +207,14 @@ export default function IncomeAnalyticsPage() {
 
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState(authService.getUser());
-  const [trendMode, setTrendMode] = useState('weekly');
-  const [warning, setWarning] = useState('');
+  const [trendMode, setTrendMode] = useState("weekly");
+  const [warning, setWarning] = useState("");
 
   const [workerRecords, setWorkerRecords] = useState([]);
   const [allRecords, setAllRecords] = useState([]);
   const [allWorkers, setAllWorkers] = useState([]);
 
-  const dateRange = searchParams.get('range') || '30';
+  const dateRange = searchParams.get("range") || "30";
 
   useEffect(() => {
     loadData();
@@ -212,30 +223,30 @@ export default function IncomeAnalyticsPage() {
 
   const loadData = async () => {
     setLoading(true);
-    setWarning('');
+    setWarning("");
 
     try {
       const profile = await authService.getMe();
       setUser(profile);
 
-      const role = String(profile?.role || '').toLowerCase();
-      if (role !== 'worker') {
-        if (role === 'analyst' || role === 'advocate') {
-          navigate('/analyst/dashboard');
+      const role = String(profile?.role || "").toLowerCase();
+      if (role !== "worker") {
+        if (role === "advocate") {
+          navigate("/advocate/dashboard");
           return;
         }
 
-        if (role === 'verifier') {
-          navigate('/verifier/dashboard');
+        if (role === "verifier") {
+          navigate("/verifier/dashboard");
           return;
         }
 
-        if (role === 'admin') {
-          navigate('/admin/dashboard');
+        if (role === "admin") {
+          navigate("/admin/dashboard");
           return;
         }
 
-        navigate('/');
+        navigate("/");
         return;
       }
 
@@ -251,35 +262,57 @@ export default function IncomeAnalyticsPage() {
         workerEarningsResult,
         allWorkersResult,
         allSessionsResult,
-        allEarningsResult
+        allEarningsResult,
       ] = await Promise.allSettled([
         earningsService.getWorkSessions(workerId),
         earningsService.getEarningsByWorker(workerId),
         authService.getOnPlatformWorkers(),
         earningsService.getWorkSessions(),
-        earningsService.getAllEarnings()
+        earningsService.getAllEarnings(),
       ]);
 
-      const workerSessions = workerSessionsResult.status === 'fulfilled' ? workerSessionsResult.value : [];
-      const workerEarnings = workerEarningsResult.status === 'fulfilled' ? workerEarningsResult.value : [];
+      const workerSessions =
+        workerSessionsResult.status === "fulfilled"
+          ? workerSessionsResult.value
+          : [];
+      const workerEarnings =
+        workerEarningsResult.status === "fulfilled"
+          ? workerEarningsResult.value
+          : [];
       const workersList =
-        allWorkersResult.status === 'fulfilled' ? normalizeWorkersPayload(allWorkersResult.value) : [];
-      const sessionsList = allSessionsResult.status === 'fulfilled' ? allSessionsResult.value : [];
-      const earningsList = allEarningsResult.status === 'fulfilled' ? allEarningsResult.value : [];
+        allWorkersResult.status === "fulfilled"
+          ? normalizeWorkersPayload(allWorkersResult.value)
+          : [];
+      const sessionsList =
+        allSessionsResult.status === "fulfilled" ? allSessionsResult.value : [];
+      const earningsList =
+        allEarningsResult.status === "fulfilled" ? allEarningsResult.value : [];
 
-      const mergedWorkerRecords = mergeSessionsWithEarnings(workerSessions, workerEarnings);
-      const mergedAllRecords = mergeSessionsWithEarnings(sessionsList, earningsList);
+      const mergedWorkerRecords = mergeSessionsWithEarnings(
+        workerSessions,
+        workerEarnings,
+      );
+      const mergedAllRecords = mergeSessionsWithEarnings(
+        sessionsList,
+        earningsList,
+      );
 
       setWorkerRecords(mergedWorkerRecords);
       setAllRecords(mergedAllRecords);
       setAllWorkers(workersList);
 
-      if (allWorkersResult.status !== 'fulfilled' || allSessionsResult.status !== 'fulfilled' || allEarningsResult.status !== 'fulfilled') {
-        setWarning('Some city-level benchmark data is unavailable right now. Core earnings analytics still work.');
+      if (
+        allWorkersResult.status !== "fulfilled" ||
+        allSessionsResult.status !== "fulfilled" ||
+        allEarningsResult.status !== "fulfilled"
+      ) {
+        setWarning(
+          "Some city-level benchmark data is unavailable right now. Core earnings analytics still work.",
+        );
       }
     } catch (error) {
-      console.error('Failed to load worker analytics:', error);
-      setWarning(error.message || 'Unable to load full analytics snapshot.');
+      console.error("Failed to load worker analytics:", error);
+      setWarning(error.message || "Unable to load full analytics snapshot.");
     } finally {
       setLoading(false);
     }
@@ -291,7 +324,9 @@ export default function IncomeAnalyticsPage() {
     cutoff.setHours(0, 0, 0, 0);
     cutoff.setDate(cutoff.getDate() - days);
 
-    return workerRecords.filter((record) => record.isVerified && record.sessionDate >= cutoff);
+    return workerRecords.filter(
+      (record) => record.isVerified && record.sessionDate >= cutoff,
+    );
   }, [dateRange, workerRecords]);
 
   const previousPeriodRecords = useMemo(() => {
@@ -303,7 +338,12 @@ export default function IncomeAnalyticsPage() {
     const previousStart = new Date(currentStart);
     previousStart.setDate(previousStart.getDate() - days);
 
-    return workerRecords.filter((record) => record.isVerified && record.sessionDate >= previousStart && record.sessionDate < currentStart);
+    return workerRecords.filter(
+      (record) =>
+        record.isVerified &&
+        record.sessionDate >= previousStart &&
+        record.sessionDate < currentStart,
+    );
   }, [dateRange, workerRecords]);
 
   const summary = useMemo(() => {
@@ -321,16 +361,20 @@ export default function IncomeAnalyticsPage() {
         totalDeductions: 0,
         totalNet: 0,
         totalHours: 0,
-        verified: 0
-      }
+        verified: 0,
+      },
     );
 
     return {
       ...totals,
       totalSessions: filteredRecords.length,
       pending: Math.max(0, filteredRecords.length - totals.verified),
-      avgHourly: totals.totalHours > 0 ? totals.totalNet / totals.totalHours : 0,
-      avgCommissionRate: totals.totalGross > 0 ? (totals.totalDeductions / totals.totalGross) * 100 : 0
+      avgHourly:
+        totals.totalHours > 0 ? totals.totalNet / totals.totalHours : 0,
+      avgCommissionRate:
+        totals.totalGross > 0
+          ? (totals.totalDeductions / totals.totalGross) * 100
+          : 0,
     };
   }, [filteredRecords]);
 
@@ -347,17 +391,21 @@ export default function IncomeAnalyticsPage() {
         totalGross: 0,
         totalDeductions: 0,
         totalNet: 0,
-        totalHours: 0
-      }
+        totalHours: 0,
+      },
     );
 
-    const avgHourly = totals.totalHours > 0 ? totals.totalNet / totals.totalHours : 0;
-    const avgCommissionRate = totals.totalGross > 0 ? (totals.totalDeductions / totals.totalGross) * 100 : 0;
+    const avgHourly =
+      totals.totalHours > 0 ? totals.totalNet / totals.totalHours : 0;
+    const avgCommissionRate =
+      totals.totalGross > 0
+        ? (totals.totalDeductions / totals.totalGross) * 100
+        : 0;
 
     return {
       ...totals,
       avgHourly,
-      avgCommissionRate
+      avgCommissionRate,
     };
   }, [previousPeriodRecords]);
 
@@ -365,12 +413,25 @@ export default function IncomeAnalyticsPage() {
     () => ({
       payout: toChangePercent(summary.totalNet, previousSummary.totalNet),
       hourly: toChangePercent(summary.avgHourly, previousSummary.avgHourly),
-      commission: toChangePercent(summary.avgCommissionRate, previousSummary.avgCommissionRate)
+      commission: toChangePercent(
+        summary.avgCommissionRate,
+        previousSummary.avgCommissionRate,
+      ),
     }),
-    [previousSummary.avgCommissionRate, previousSummary.avgHourly, previousSummary.totalNet, summary.avgCommissionRate, summary.avgHourly, summary.totalNet]
+    [
+      previousSummary.avgCommissionRate,
+      previousSummary.avgHourly,
+      previousSummary.totalNet,
+      summary.avgCommissionRate,
+      summary.avgHourly,
+      summary.totalNet,
+    ],
   );
 
-  const trendData = useMemo(() => buildTrendData(filteredRecords, trendMode), [filteredRecords, trendMode]);
+  const trendData = useMemo(
+    () => buildTrendData(filteredRecords, trendMode),
+    [filteredRecords, trendMode],
+  );
 
   const platformRates = useMemo(() => {
     const grouped = {};
@@ -383,7 +444,7 @@ export default function IncomeAnalyticsPage() {
           platform,
           gross: 0,
           deductions: 0,
-          sessions: 0
+          sessions: 0,
         };
       }
 
@@ -395,7 +456,7 @@ export default function IncomeAnalyticsPage() {
     return Object.values(grouped)
       .map((item) => ({
         ...item,
-        rate: item.gross > 0 ? (item.deductions / item.gross) * 100 : 0
+        rate: item.gross > 0 ? (item.deductions / item.gross) * 100 : 0,
       }))
       .sort((left, right) => right.gross - left.gross)
       .slice(0, 5);
@@ -403,7 +464,9 @@ export default function IncomeAnalyticsPage() {
 
   const cityMedianComparison = useMemo(() => {
     const workerMap = new Map(allWorkers.map((item) => [item.id, item]));
-    const activeWorker = user ? workerMap.get(user.id || user._id) || user : null;
+    const activeWorker = user
+      ? workerMap.get(user.id || user._id) || user
+      : null;
 
     if (!activeWorker?.city || !activeWorker?.category) {
       return {
@@ -413,7 +476,7 @@ export default function IncomeAnalyticsPage() {
         workerHourly: summary.avgHourly,
         workerNet: summary.totalNet,
         workerPosition: 50,
-        medianPosition: 50
+        medianPosition: 50,
       };
     }
 
@@ -434,8 +497,12 @@ export default function IncomeAnalyticsPage() {
         continue;
       }
 
-      const cityMatches = String(peer.city || '').toLowerCase() === String(activeWorker.city || '').toLowerCase();
-      const categoryMatches = String(peer.category || '').toLowerCase() === String(activeWorker.category || '').toLowerCase();
+      const cityMatches =
+        String(peer.city || "").toLowerCase() ===
+        String(activeWorker.city || "").toLowerCase();
+      const categoryMatches =
+        String(peer.category || "").toLowerCase() ===
+        String(activeWorker.category || "").toLowerCase();
 
       if (!cityMatches || !categoryMatches || !record.isVerified) {
         continue;
@@ -444,7 +511,7 @@ export default function IncomeAnalyticsPage() {
       if (!peersByWorker.has(peer.id)) {
         peersByWorker.set(peer.id, {
           totalNet: 0,
-          totalHours: 0
+          totalHours: 0,
         });
       }
 
@@ -454,9 +521,13 @@ export default function IncomeAnalyticsPage() {
     }
 
     const peerValues = Array.from(peersByWorker.values());
-    const peerNet = peerValues.map((entry) => entry.totalNet).filter((value) => value > 0);
+    const peerNet = peerValues
+      .map((entry) => entry.totalNet)
+      .filter((value) => value > 0);
     const peerHourly = peerValues
-      .map((entry) => (entry.totalHours > 0 ? entry.totalNet / entry.totalHours : 0))
+      .map((entry) =>
+        entry.totalHours > 0 ? entry.totalNet / entry.totalHours : 0,
+      )
       .filter((value) => value > 0);
 
     const medianNet = getMedian(peerNet);
@@ -473,11 +544,21 @@ export default function IncomeAnalyticsPage() {
       workerHourly: summary.avgHourly,
       workerNet: summary.totalNet,
       workerPosition,
-      medianPosition
+      medianPosition,
     };
-  }, [allRecords, allWorkers, dateRange, summary.avgHourly, summary.totalNet, user]);
+  }, [
+    allRecords,
+    allWorkers,
+    dateRange,
+    summary.avgHourly,
+    summary.totalNet,
+    user,
+  ]);
 
-  const recentRows = useMemo(() => filteredRecords.slice(0, 8), [filteredRecords]);
+  const recentRows = useMemo(
+    () => filteredRecords.slice(0, 8),
+    [filteredRecords],
+  );
 
   if (loading) {
     return (
@@ -494,16 +575,21 @@ export default function IncomeAnalyticsPage() {
       <div className="mx-auto max-w-7xl px-4 pt-6 sm:px-6 lg:px-8">
         <div className="mb-5 flex flex-wrap items-start justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-extrabold tracking-tight text-zinc-950">Income Analytics</h1>
+            <h1 className="text-3xl font-extrabold tracking-tight text-zinc-950">
+              Income Analytics
+            </h1>
             <p className="mt-1 text-sm text-zinc-600">
-              Real-time breakdown of effective earnings, platform commissions, and market performance.
+              Real-time breakdown of effective earnings, platform commissions,
+              and market performance.
             </p>
           </div>
 
           <div className="flex items-center gap-2">
             <select
               value={dateRange}
-              onChange={(event) => setSearchParams({ range: event.target.value })}
+              onChange={(event) =>
+                setSearchParams({ range: event.target.value })
+              }
               className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-700 shadow-sm focus:border-zinc-900 focus:outline-none focus:ring-1 focus:ring-zinc-900"
             >
               {RANGE_OPTIONS.map((option) => (
@@ -531,30 +617,58 @@ export default function IncomeAnalyticsPage() {
 
         <div className="grid gap-4 md:grid-cols-3">
           <div className="rounded-xl border border-zinc-700 bg-gradient-to-br from-slate-700 to-slate-900 p-5 text-white shadow-sm">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-200">Total Net Earnings</p>
-            <p className="mt-3 text-5xl font-extrabold tracking-tight">{formatCurrency(summary.totalNet)}</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-200">
+              Total Net Earnings
+            </p>
+            <p className="mt-3 text-5xl font-extrabold tracking-tight">
+              {formatCurrency(summary.totalNet)}
+            </p>
             <p className="mt-3 inline-flex items-center gap-1 rounded bg-emerald-500/20 px-2 py-1 text-xs font-semibold text-emerald-200">
-              {changeSet.payout >= 0 ? <ArrowUpRight className="h-3.5 w-3.5" /> : <ArrowDownRight className="h-3.5 w-3.5" />}
+              {changeSet.payout >= 0 ? (
+                <ArrowUpRight className="h-3.5 w-3.5" />
+              ) : (
+                <ArrowDownRight className="h-3.5 w-3.5" />
+              )}
               {Math.abs(changeSet.payout).toFixed(1)}% vs last period
             </p>
           </div>
 
           <div className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">Effective Hourly Rate</p>
-            <p className="mt-3 text-4xl font-extrabold tracking-tight text-zinc-900">{formatHourlyRate(summary.avgHourly)}</p>
-            <p className="mt-1 text-sm text-zinc-600">Based on {summary.totalHours.toFixed(1)} active hours</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">
+              Effective Hourly Rate
+            </p>
+            <p className="mt-3 text-4xl font-extrabold tracking-tight text-zinc-900">
+              {formatHourlyRate(summary.avgHourly)}
+            </p>
+            <p className="mt-1 text-sm text-zinc-600">
+              Based on {summary.totalHours.toFixed(1)} active hours
+            </p>
             <p className="mt-3 inline-flex items-center gap-1 text-xs text-zinc-500">
-              {changeSet.hourly >= 0 ? <ArrowUpRight className="h-3.5 w-3.5" /> : <ArrowDownRight className="h-3.5 w-3.5" />}
+              {changeSet.hourly >= 0 ? (
+                <ArrowUpRight className="h-3.5 w-3.5" />
+              ) : (
+                <ArrowDownRight className="h-3.5 w-3.5" />
+              )}
               {Math.abs(changeSet.hourly).toFixed(1)}% vs last period
             </p>
           </div>
 
           <div className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">Total Platform Fees</p>
-            <p className="mt-3 text-4xl font-extrabold tracking-tight text-red-600">{formatCurrency(summary.totalDeductions)}</p>
-            <p className="mt-1 text-sm text-zinc-600">Avg {summary.avgCommissionRate.toFixed(1)}% commission rate</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">
+              Total Platform Fees
+            </p>
+            <p className="mt-3 text-4xl font-extrabold tracking-tight text-red-600">
+              {formatCurrency(summary.totalDeductions)}
+            </p>
+            <p className="mt-1 text-sm text-zinc-600">
+              Avg {summary.avgCommissionRate.toFixed(1)}% commission rate
+            </p>
             <p className="mt-3 inline-flex items-center gap-1 text-xs text-zinc-500">
-              {changeSet.commission <= 0 ? <ArrowDownRight className="h-3.5 w-3.5" /> : <ArrowUpRight className="h-3.5 w-3.5" />}
+              {changeSet.commission <= 0 ? (
+                <ArrowDownRight className="h-3.5 w-3.5" />
+              ) : (
+                <ArrowUpRight className="h-3.5 w-3.5" />
+              )}
               {Math.abs(changeSet.commission).toFixed(1)}% vs last period
             </p>
           </div>
@@ -563,7 +677,9 @@ export default function IncomeAnalyticsPage() {
         <div className="mt-4 grid gap-4 lg:grid-cols-[2fr_1fr]">
           <div className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm">
             <div className="mb-4 flex items-center justify-between gap-3">
-              <h2 className="text-2xl font-bold tracking-tight text-zinc-900">Earnings Trend</h2>
+              <h2 className="text-2xl font-bold tracking-tight text-zinc-900">
+                Earnings Trend
+              </h2>
               <div className="inline-flex rounded-lg border border-zinc-200 bg-zinc-100 p-1">
                 {TREND_OPTIONS.map((option) => (
                   <button
@@ -572,8 +688,8 @@ export default function IncomeAnalyticsPage() {
                     onClick={() => setTrendMode(option.value)}
                     className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
                       trendMode === option.value
-                        ? 'bg-white text-zinc-900 shadow-sm'
-                        : 'text-zinc-500 hover:text-zinc-700'
+                        ? "bg-white text-zinc-900 shadow-sm"
+                        : "text-zinc-500 hover:text-zinc-700"
                     }`}
                   >
                     {option.label}
@@ -587,33 +703,49 @@ export default function IncomeAnalyticsPage() {
                 <ResponsiveContainer width="100%" height="100%">
                   <ComposedChart data={trendData}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e4e4e7" />
-                    <XAxis dataKey="label" tick={{ fill: '#71717a', fontSize: 12 }} axisLine={false} tickLine={false} />
-                    <YAxis
-                      yAxisId="left"
-                      tick={{ fill: '#71717a', fontSize: 12 }}
+                    <XAxis
+                      dataKey="label"
+                      tick={{ fill: "#71717a", fontSize: 12 }}
                       axisLine={false}
                       tickLine={false}
-                      tickFormatter={(value) => `PKR ${Math.round(value / 1000)}k`}
+                    />
+                    <YAxis
+                      yAxisId="left"
+                      tick={{ fill: "#71717a", fontSize: 12 }}
+                      axisLine={false}
+                      tickLine={false}
+                      tickFormatter={(value) =>
+                        `PKR ${Math.round(value / 1000)}k`
+                      }
                     />
                     <YAxis
                       yAxisId="right"
                       orientation="right"
-                      tick={{ fill: '#71717a', fontSize: 12 }}
+                      tick={{ fill: "#71717a", fontSize: 12 }}
                       axisLine={false}
                       tickLine={false}
                       tickFormatter={(value) => `${Math.round(value)}`}
                     />
                     <Tooltip
-                      contentStyle={{ borderRadius: '10px', borderColor: '#d4d4d8' }}
+                      contentStyle={{
+                        borderRadius: "10px",
+                        borderColor: "#d4d4d8",
+                      }}
                       formatter={(value, name) => {
-                        if (name === 'hourlyRate') {
-                          return [formatHourlyRate(value), 'Hourly Rate'];
+                        if (name === "hourlyRate") {
+                          return [formatHourlyRate(value), "Hourly Rate"];
                         }
 
-                        return [formatCurrency(value), 'Net Earnings'];
+                        return [formatCurrency(value), "Net Earnings"];
                       }}
                     />
-                    <Bar yAxisId="left" dataKey="net" fill="#0f172a" radius={[6, 6, 0, 0]} maxBarSize={42} />
+                    <Bar
+                      yAxisId="left"
+                      dataKey="net"
+                      fill="#0f172a"
+                      radius={[6, 6, 0, 0]}
+                      maxBarSize={42}
+                    />
                     <Line
                       yAxisId="right"
                       type="monotone"
@@ -633,30 +765,38 @@ export default function IncomeAnalyticsPage() {
           </div>
 
           <div className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm">
-            <h2 className="text-2xl font-bold tracking-tight text-zinc-900">Commission Rates</h2>
+            <h2 className="text-2xl font-bold tracking-tight text-zinc-900">
+              Commission Rates
+            </h2>
 
             <div className="mt-4 space-y-4">
               {platformRates.length > 0 ? (
                 platformRates.map((platform) => {
                   const width = Math.min(100, Math.max(4, platform.rate * 3));
-                  const aboveAverage = platform.rate > summary.avgCommissionRate;
+                  const aboveAverage =
+                    platform.rate > summary.avgCommissionRate;
 
                   return (
                     <div key={platform.platform}>
                       <div className="mb-1 flex items-center justify-between">
-                        <p className="text-sm font-semibold text-zinc-800">{platform.platform}</p>
-                        <p className={`text-sm font-semibold ${aboveAverage ? 'text-red-600' : 'text-emerald-600'}`}>
+                        <p className="text-sm font-semibold text-zinc-800">
+                          {platform.platform}
+                        </p>
+                        <p
+                          className={`text-sm font-semibold ${aboveAverage ? "text-red-600" : "text-emerald-600"}`}
+                        >
                           {platform.rate.toFixed(1)}%
                         </p>
                       </div>
                       <div className="h-2.5 rounded-full bg-zinc-200">
                         <div
-                          className={`h-full rounded-full ${aboveAverage ? 'bg-red-600' : 'bg-emerald-600'}`}
+                          className={`h-full rounded-full ${aboveAverage ? "bg-red-600" : "bg-emerald-600"}`}
                           style={{ width: `${width}%` }}
                         />
                       </div>
                       <p className="mt-1 text-xs text-zinc-500">
-                        {platform.sessions} sessions • {formatCurrency(platform.deductions)} fees
+                        {platform.sessions} sessions •{" "}
+                        {formatCurrency(platform.deductions)} fees
                       </p>
                     </div>
                   );
@@ -673,7 +813,7 @@ export default function IncomeAnalyticsPage() {
         <div className="mt-4 rounded-xl border border-zinc-200 bg-white p-5 shadow-sm">
           <div className="flex items-center justify-between gap-2">
             <h2 className="text-2xl font-bold tracking-tight text-zinc-900">
-              Market Comparison: {user?.city || 'Your City'}
+              Market Comparison: {user?.city || "Your City"}
             </h2>
             <span className="rounded-full bg-zinc-100 px-3 py-1 text-xs font-semibold text-zinc-600">
               {cityMedianComparison.peers} peers in benchmark
@@ -681,13 +821,15 @@ export default function IncomeAnalyticsPage() {
           </div>
 
           <p className="mt-2 text-sm text-zinc-600">
-            Category benchmark uses anonymized workers in your city and category from seeded records.
+            Category benchmark uses anonymized workers in your city and category
+            from seeded records.
           </p>
 
           <div className="mt-5 rounded-lg border border-zinc-200 bg-zinc-50 p-4">
             <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
               <p className="font-semibold text-zinc-700">
-                City Median: {formatHourlyRate(cityMedianComparison.medianHourly)}
+                City Median:{" "}
+                {formatHourlyRate(cityMedianComparison.medianHourly)}
               </p>
               <p className="font-semibold text-zinc-900">
                 You: {formatHourlyRate(cityMedianComparison.workerHourly)}
@@ -697,11 +839,15 @@ export default function IncomeAnalyticsPage() {
             <div className="relative mt-5 h-2 rounded-full bg-zinc-200">
               <div
                 className="absolute top-1/2 h-4 w-4 -translate-y-1/2 rounded-full border-2 border-zinc-700 bg-white"
-                style={{ left: `calc(${cityMedianComparison.medianPosition}% - 8px)` }}
+                style={{
+                  left: `calc(${cityMedianComparison.medianPosition}% - 8px)`,
+                }}
               />
               <div
                 className="absolute top-1/2 h-4 w-4 -translate-y-1/2 rounded-full border-2 border-amber-500 bg-zinc-900"
-                style={{ left: `calc(${cityMedianComparison.workerPosition}% - 8px)` }}
+                style={{
+                  left: `calc(${cityMedianComparison.workerPosition}% - 8px)`,
+                }}
               />
             </div>
 
@@ -715,7 +861,8 @@ export default function IncomeAnalyticsPage() {
                 Your hourly
               </span>
               <span>
-                Median net in range: {formatCurrency(cityMedianComparison.medianNet)}
+                Median net in range:{" "}
+                {formatCurrency(cityMedianComparison.medianNet)}
               </span>
             </div>
           </div>
@@ -723,7 +870,9 @@ export default function IncomeAnalyticsPage() {
 
         <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_2fr]">
           <div className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm">
-            <h3 className="text-lg font-semibold text-zinc-900">Verification Snapshot</h3>
+            <h3 className="text-lg font-semibold text-zinc-900">
+              Verification Snapshot
+            </h3>
             <div className="mt-4 space-y-3">
               <div className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
                 <p className="inline-flex items-center gap-2 font-medium">
@@ -756,36 +905,67 @@ export default function IncomeAnalyticsPage() {
           </div>
 
           <div className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm">
-            <h3 className="text-lg font-semibold text-zinc-900">Recent Sessions</h3>
+            <h3 className="text-lg font-semibold text-zinc-900">
+              Recent Sessions
+            </h3>
 
             {recentRows.length > 0 ? (
               <div className="mt-3 overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-zinc-200 text-zinc-500">
-                      <th className="py-2 text-left font-semibold uppercase tracking-wide">Date</th>
-                      <th className="py-2 text-left font-semibold uppercase tracking-wide">Platform</th>
-                      <th className="py-2 text-right font-semibold uppercase tracking-wide">Hours</th>
-                      <th className="py-2 text-right font-semibold uppercase tracking-wide">Commission</th>
-                      <th className="py-2 text-right font-semibold uppercase tracking-wide">Net</th>
-                      <th className="py-2 text-right font-semibold uppercase tracking-wide">Status</th>
+                      <th className="py-2 text-left font-semibold uppercase tracking-wide">
+                        Date
+                      </th>
+                      <th className="py-2 text-left font-semibold uppercase tracking-wide">
+                        Platform
+                      </th>
+                      <th className="py-2 text-right font-semibold uppercase tracking-wide">
+                        Hours
+                      </th>
+                      <th className="py-2 text-right font-semibold uppercase tracking-wide">
+                        Commission
+                      </th>
+                      <th className="py-2 text-right font-semibold uppercase tracking-wide">
+                        Net
+                      </th>
+                      <th className="py-2 text-right font-semibold uppercase tracking-wide">
+                        Status
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
                     {recentRows.map((record) => (
-                      <tr key={record.id} className="border-b border-zinc-100 text-zinc-700">
-                        <td className="py-2.5">{new Date(record.sessionDate).toLocaleDateString('en-PK')}</td>
-                        <td className="py-2.5">{formatPlatformLabel(record.platform)}</td>
-                        <td className="py-2.5 text-right">{record.hoursWorked.toFixed(1)}</td>
-                        <td className="py-2.5 text-right text-red-600">{record.deductionRate.toFixed(1)}%</td>
-                        <td className="py-2.5 text-right font-semibold text-zinc-900">{formatCurrency(record.net)}</td>
+                      <tr
+                        key={record.id}
+                        className="border-b border-zinc-100 text-zinc-700"
+                      >
+                        <td className="py-2.5">
+                          {new Date(record.sessionDate).toLocaleDateString(
+                            "en-PK",
+                          )}
+                        </td>
+                        <td className="py-2.5">
+                          {formatPlatformLabel(record.platform)}
+                        </td>
+                        <td className="py-2.5 text-right">
+                          {record.hoursWorked.toFixed(1)}
+                        </td>
+                        <td className="py-2.5 text-right text-red-600">
+                          {record.deductionRate.toFixed(1)}%
+                        </td>
+                        <td className="py-2.5 text-right font-semibold text-zinc-900">
+                          {formatCurrency(record.net)}
+                        </td>
                         <td className="py-2.5 text-right">
                           <span
                             className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${
-                              record.isVerified ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
+                              record.isVerified
+                                ? "bg-emerald-100 text-emerald-700"
+                                : "bg-amber-100 text-amber-700"
                             }`}
                           >
-                            {record.isVerified ? 'Verified' : 'Pending'}
+                            {record.isVerified ? "Verified" : "Pending"}
                           </span>
                         </td>
                       </tr>

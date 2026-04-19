@@ -10,21 +10,21 @@ const router = express.Router();
 router.get(
   '/posts',
   authenticateToken,
-  requireRoles([ROLES.WORKER, ROLES.ADVOCATE, ROLES.ANALYST, ROLES.ADMIN]),
+  requireRoles([ROLES.WORKER, ROLES.ADVOCATE, ROLES.ADMIN]),
   communityPostController.listPosts
 );
 
 router.get(
   '/posts/top',
   authenticateToken,
-  requireRoles([ROLES.WORKER, ROLES.ADVOCATE, ROLES.ANALYST, ROLES.ADMIN]),
+  requireRoles([ROLES.WORKER, ROLES.ADVOCATE, ROLES.ADMIN]),
   communityPostController.listTopPosts
 );
 
 router.get(
   '/posts/clusters',
   authenticateToken,
-  requireRoles([ROLES.WORKER, ROLES.ADVOCATE, ROLES.ANALYST, ROLES.ADMIN]),
+  requireRoles([ROLES.WORKER, ROLES.ADVOCATE, ROLES.ADMIN]),
   communityPostController.listPostClusters
 );
 
@@ -38,7 +38,7 @@ router.post(
 router.get(
   '/posts/:postId/comments',
   authenticateToken,
-  requireRoles([ROLES.WORKER, ROLES.ADVOCATE, ROLES.ANALYST, ROLES.ADMIN]),
+  requireRoles([ROLES.WORKER, ROLES.ADVOCATE, ROLES.ADMIN]),
   commentController.listComments
 );
 

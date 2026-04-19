@@ -8,14 +8,14 @@ const router = express.Router();
 router.get(
   '/posts',
   authenticateToken,
-  requireRoles([ROLES.ADVOCATE, ROLES.ANALYST, ROLES.ADMIN]),
+  requireRoles([ROLES.ADVOCATE, ROLES.ADMIN]),
   moderationController.listModerationQueue
 );
 
 router.patch(
   '/posts/:postId',
   authenticateToken,
-  requireRoles([ROLES.ADVOCATE, ROLES.ANALYST, ROLES.ADMIN]),
+  requireRoles([ROLES.ADVOCATE, ROLES.ADMIN]),
   moderationController.moderatePost
 );
 

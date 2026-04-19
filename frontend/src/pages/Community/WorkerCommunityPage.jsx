@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import toast from 'react-hot-toast';
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import toast from "react-hot-toast";
 import {
   ArrowBigDown,
   ArrowBigUp,
@@ -9,42 +9,55 @@ import {
   RefreshCw,
   SendHorizontal,
   ShieldAlert,
-  X
-} from 'lucide-react';
-import authService from '../../services/api/authService';
-import communityService from '../../services/api/communityService';
-import Navbar from '../../components/Navigation/Navbar';
-import { Button } from '../../components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
-import { Input } from '../../components/ui/input';
-import { Textarea } from '../../components/ui/textarea';
-import { Badge } from '../../components/ui/badge';
+  X,
+} from "lucide-react";
+import authService from "../../services/api/authService";
+import communityService from "../../services/api/communityService";
+import Navbar from "../../components/Navigation/Navbar";
+import { Button } from "../../components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "../../components/ui/card";
+import { Input } from "../../components/ui/input";
+import { Textarea } from "../../components/ui/textarea";
+import { Badge } from "../../components/ui/badge";
 
-const PLATFORM_OPTIONS = ['Uber', 'Careem', 'Bykea', 'Foodpanda', 'InDrive', 'Other'];
+const PLATFORM_OPTIONS = [
+  "Uber",
+  "Careem",
+  "Bykea",
+  "Foodpanda",
+  "InDrive",
+  "Other",
+];
 const ISSUE_OPTIONS = [
-  'Rate drop',
-  'Unfair deduction',
-  'Payment delay',
-  'Account suspension',
-  'Safety concern',
-  'Support request',
-  'Other'
+  "Rate drop",
+  "Unfair deduction",
+  "Payment delay",
+  "Account suspension",
+  "Safety concern",
+  "Support request",
+  "Other",
 ];
 
 const DEFAULT_FORM = {
-  title: '',
-  description: '',
+  title: "",
+  description: "",
   platform: PLATFORM_OPTIONS[0],
   issue: ISSUE_OPTIONS[0],
-  image_url: ''
+  image_url: "",
 };
 
 function formatDate(value) {
   return new Date(value).toLocaleString([], {
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit'
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
   });
 }
 
@@ -58,11 +71,11 @@ export default function WorkerCommunityPage() {
   const [creatingPost, setCreatingPost] = useState(false);
 
   const [formData, setFormData] = useState(DEFAULT_FORM);
-  const [previewImage, setPreviewImage] = useState('');
+  const [previewImage, setPreviewImage] = useState("");
 
-  const [sortBy, setSortBy] = useState('new');
-  const [platformFilter, setPlatformFilter] = useState('');
-  const [issueFilter, setIssueFilter] = useState('');
+  const [sortBy, setSortBy] = useState("new");
+  const [platformFilter, setPlatformFilter] = useState("");
+  const [issueFilter, setIssueFilter] = useState("");
 
   const [expandedComments, setExpandedComments] = useState({});
   const [commentsByPost, setCommentsByPost] = useState({});
@@ -70,7 +83,10 @@ export default function WorkerCommunityPage() {
   const [commentDrafts, setCommentDrafts] = useState({});
   const [submittingCommentFor, setSubmittingCommentFor] = useState({});
 
-  const hasFilters = useMemo(() => Boolean(platformFilter || issueFilter || sortBy !== 'new'), [platformFilter, issueFilter, sortBy]);
+  const hasFilters = useMemo(
+    () => Boolean(platformFilter || issueFilter || sortBy !== "new"),
+    [platformFilter, issueFilter, sortBy],
+  );
 
   useEffect(() => {
     initializePage();
@@ -87,17 +103,17 @@ export default function WorkerCommunityPage() {
     try {
       const profile = await authService.getMe();
 
-      if (profile?.role !== 'worker') {
-        toast.error('Worker Community is available for workers only');
-        navigate('/dashboard');
+      if (profile?.role !== "worker") {
+        toast.error("Worker Community is available for workers only");
+        navigate("/dashboard");
         return;
       }
 
       setUser(profile);
       await loadPosts(profile);
     } catch (error) {
-      toast.error(error.message || 'Please login again');
-      navigate('/login');
+      toast.error(error.message || "Please login again");
+      navigate("/login");
     } finally {
       setLoading(false);
     }
@@ -111,11 +127,11 @@ export default function WorkerCommunityPage() {
       const result = await communityService.listPosts({
         sort: sortBy,
         platform: platformFilter,
-        issue: issueFilter
+        issue: issueFilter,
       });
       setPosts(result.posts || []);
     } catch (error) {
-      toast.error(error.message || 'Failed to load community posts');
+      toast.error(error.message || "Failed to load community posts");
     } finally {
       setRefreshing(false);
     }
@@ -125,7 +141,7 @@ export default function WorkerCommunityPage() {
     event.preventDefault();
 
     if (!formData.title.trim() || !formData.description.trim()) {
-      toast.error('Please add a title and description');
+      toast.error("Please add a title and description");
       return;
     }
 
@@ -136,15 +152,15 @@ export default function WorkerCommunityPage() {
         description: formData.description.trim(),
         platform: formData.platform,
         issue: formData.issue,
-        image_url: formData.image_url
+        image_url: formData.image_url,
       });
 
-      toast.success(result.message || 'Post submitted');
+      toast.success(result.message || "Post submitted");
       setFormData(DEFAULT_FORM);
-      setPreviewImage('');
+      setPreviewImage("");
       await loadPosts();
     } catch (error) {
-      toast.error(error.message || 'Failed to create post');
+      toast.error(error.message || "Failed to create post");
     } finally {
       setCreatingPost(false);
     }
@@ -154,26 +170,26 @@ export default function WorkerCommunityPage() {
     const file = event.target.files?.[0];
 
     if (!file) {
-      setFormData((prev) => ({ ...prev, image_url: '' }));
-      setPreviewImage('');
+      setFormData((prev) => ({ ...prev, image_url: "" }));
+      setPreviewImage("");
       return;
     }
 
-    if (!file.type.startsWith('image/')) {
-      toast.error('Only image files are allowed');
-      event.target.value = '';
+    if (!file.type.startsWith("image/")) {
+      toast.error("Only image files are allowed");
+      event.target.value = "";
       return;
     }
 
     if (file.size > 2 * 1024 * 1024) {
-      toast.error('Image must be smaller than 2MB');
-      event.target.value = '';
+      toast.error("Image must be smaller than 2MB");
+      event.target.value = "";
       return;
     }
 
     const reader = new FileReader();
     reader.onload = () => {
-      const imageData = String(reader.result || '');
+      const imageData = String(reader.result || "");
       setPreviewImage(imageData);
       setFormData((prev) => ({ ...prev, image_url: imageData }));
     };
@@ -188,17 +204,17 @@ export default function WorkerCommunityPage() {
         prev.map((post) =>
           post.id === postId
             ? {
-              ...post,
-              upvotes: result.upvotes,
-              downvotes: result.downvotes,
-              score: result.score,
-              user_vote: result.user_vote
-            }
-            : post
-        )
+                ...post,
+                upvotes: result.upvotes,
+                downvotes: result.downvotes,
+                score: result.score,
+                user_vote: result.user_vote,
+              }
+            : post,
+        ),
       );
     } catch (error) {
-      toast.error(error.message || 'Failed to update vote');
+      toast.error(error.message || "Failed to update vote");
     }
   }
 
@@ -207,7 +223,7 @@ export default function WorkerCommunityPage() {
 
     setExpandedComments((prev) => ({
       ...prev,
-      [postId]: !isOpen
+      [postId]: !isOpen,
     }));
 
     if (!isOpen && !commentsByPost[postId]) {
@@ -219,19 +235,22 @@ export default function WorkerCommunityPage() {
     try {
       setCommentsLoading((prev) => ({ ...prev, [postId]: true }));
       const result = await communityService.listComments(postId);
-      setCommentsByPost((prev) => ({ ...prev, [postId]: result.comments || [] }));
+      setCommentsByPost((prev) => ({
+        ...prev,
+        [postId]: result.comments || [],
+      }));
     } catch (error) {
-      toast.error(error.message || 'Failed to load comments');
+      toast.error(error.message || "Failed to load comments");
     } finally {
       setCommentsLoading((prev) => ({ ...prev, [postId]: false }));
     }
   }
 
   async function submitComment(postId) {
-    const draft = (commentDrafts[postId] || '').trim();
+    const draft = (commentDrafts[postId] || "").trim();
 
     if (!draft) {
-      toast.error('Comment cannot be empty');
+      toast.error("Comment cannot be empty");
       return;
     }
 
@@ -241,30 +260,30 @@ export default function WorkerCommunityPage() {
 
       setCommentsByPost((prev) => ({
         ...prev,
-        [postId]: [...(prev[postId] || []), result.comment]
+        [postId]: [...(prev[postId] || []), result.comment],
       }));
 
       setPosts((prev) =>
         prev.map((post) =>
           post.id === postId
             ? { ...post, comment_count: (post.comment_count || 0) + 1 }
-            : post
-        )
+            : post,
+        ),
       );
 
-      setCommentDrafts((prev) => ({ ...prev, [postId]: '' }));
+      setCommentDrafts((prev) => ({ ...prev, [postId]: "" }));
       setExpandedComments((prev) => ({ ...prev, [postId]: true }));
     } catch (error) {
-      toast.error(error.message || 'Failed to add comment');
+      toast.error(error.message || "Failed to add comment");
     } finally {
       setSubmittingCommentFor((prev) => ({ ...prev, [postId]: false }));
     }
   }
 
   function statusVariant(status) {
-    if (status === 'approved') return 'success';
-    if (status === 'rejected') return 'destructive';
-    return 'secondary';
+    if (status === "approved") return "success";
+    if (status === "rejected") return "destructive";
+    return "secondary";
   }
 
   if (loading) {
@@ -282,13 +301,22 @@ export default function WorkerCommunityPage() {
       <main className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-zinc-900">Worker Community</h1>
+            <h1 className="text-2xl font-bold tracking-tight text-zinc-900">
+              Worker Community
+            </h1>
             <p className="text-sm text-zinc-500">
-              Anonymous worker board for rate intel, platform complaints, and support requests.
+              Anonymous worker board for rate intel, platform complaints, and
+              support requests.
             </p>
           </div>
-          <Button variant="outline" onClick={() => loadPosts()} disabled={refreshing}>
-            <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+          <Button
+            variant="outline"
+            onClick={() => loadPosts()}
+            disabled={refreshing}
+          >
+            <RefreshCw
+              className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`}
+            />
             Refresh
           </Button>
         </div>
@@ -299,13 +327,17 @@ export default function WorkerCommunityPage() {
               <CardHeader>
                 <CardTitle>Create Anonymous Post</CardTitle>
                 <CardDescription>
-                  Posts are visible after advocate moderation. Your identity stays hidden from other workers.
+                  Posts are visible after advocate moderation. Your identity
+                  stays hidden from other workers.
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <form className="space-y-4" onSubmit={handleCreatePost}>
                   <div className="space-y-2">
-                    <label className="text-sm font-medium text-zinc-700" htmlFor="title">
+                    <label
+                      className="text-sm font-medium text-zinc-700"
+                      htmlFor="title"
+                    >
                       Title
                     </label>
                     <Input
@@ -313,12 +345,20 @@ export default function WorkerCommunityPage() {
                       maxLength={120}
                       placeholder="Example: Careem cut rider rates this week"
                       value={formData.title}
-                      onChange={(event) => setFormData((prev) => ({ ...prev, title: event.target.value }))}
+                      onChange={(event) =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          title: event.target.value,
+                        }))
+                      }
                     />
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-sm font-medium text-zinc-700" htmlFor="description">
+                    <label
+                      className="text-sm font-medium text-zinc-700"
+                      htmlFor="description"
+                    >
                       Description
                     </label>
                     <Textarea
@@ -326,20 +366,33 @@ export default function WorkerCommunityPage() {
                       maxLength={1200}
                       placeholder="Share details workers should know..."
                       value={formData.description}
-                      onChange={(event) => setFormData((prev) => ({ ...prev, description: event.target.value }))}
+                      onChange={(event) =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          description: event.target.value,
+                        }))
+                      }
                     />
                   </div>
 
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-2">
-                      <label className="text-sm font-medium text-zinc-700" htmlFor="platform">
+                      <label
+                        className="text-sm font-medium text-zinc-700"
+                        htmlFor="platform"
+                      >
                         Platform
                       </label>
                       <select
                         id="platform"
                         className="flex h-10 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-900 focus-visible:ring-offset-2"
                         value={formData.platform}
-                        onChange={(event) => setFormData((prev) => ({ ...prev, platform: event.target.value }))}
+                        onChange={(event) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            platform: event.target.value,
+                          }))
+                        }
                       >
                         {PLATFORM_OPTIONS.map((platformOption) => (
                           <option key={platformOption} value={platformOption}>
@@ -350,14 +403,22 @@ export default function WorkerCommunityPage() {
                     </div>
 
                     <div className="space-y-2">
-                      <label className="text-sm font-medium text-zinc-700" htmlFor="issue">
+                      <label
+                        className="text-sm font-medium text-zinc-700"
+                        htmlFor="issue"
+                      >
                         Issue Type
                       </label>
                       <select
                         id="issue"
                         className="flex h-10 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-900 focus-visible:ring-offset-2"
                         value={formData.issue}
-                        onChange={(event) => setFormData((prev) => ({ ...prev, issue: event.target.value }))}
+                        onChange={(event) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            issue: event.target.value,
+                          }))
+                        }
                       >
                         {ISSUE_OPTIONS.map((issueOption) => (
                           <option key={issueOption} value={issueOption}>
@@ -369,7 +430,10 @@ export default function WorkerCommunityPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-sm font-medium text-zinc-700" htmlFor="image_upload">
+                    <label
+                      className="text-sm font-medium text-zinc-700"
+                      htmlFor="image_upload"
+                    >
                       Attach Image (optional)
                     </label>
                     <div className="rounded-md border border-dashed border-zinc-300 p-4">
@@ -397,8 +461,11 @@ export default function WorkerCommunityPage() {
                           <button
                             type="button"
                             onClick={() => {
-                              setPreviewImage('');
-                              setFormData((prev) => ({ ...prev, image_url: '' }));
+                              setPreviewImage("");
+                              setFormData((prev) => ({
+                                ...prev,
+                                image_url: "",
+                              }));
                             }}
                             className="absolute right-2 top-2 rounded-full bg-zinc-800/70 p-1 text-white hover:bg-zinc-900"
                           >
@@ -409,8 +476,12 @@ export default function WorkerCommunityPage() {
                     </div>
                   </div>
 
-                  <Button type="submit" className="w-full" disabled={creatingPost}>
-                    {creatingPost ? 'Submitting...' : 'Submit Post'}
+                  <Button
+                    type="submit"
+                    className="w-full"
+                    disabled={creatingPost}
+                  >
+                    {creatingPost ? "Submitting..." : "Submit Post"}
                   </Button>
                 </form>
               </CardContent>
@@ -422,7 +493,10 @@ export default function WorkerCommunityPage() {
               </CardHeader>
               <CardContent className="space-y-3">
                 <div className="space-y-1">
-                  <label className="text-sm font-medium text-zinc-700" htmlFor="sortBy">
+                  <label
+                    className="text-sm font-medium text-zinc-700"
+                    htmlFor="sortBy"
+                  >
                     Sort
                   </label>
                   <select
@@ -438,7 +512,10 @@ export default function WorkerCommunityPage() {
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-sm font-medium text-zinc-700" htmlFor="platformFilter">
+                  <label
+                    className="text-sm font-medium text-zinc-700"
+                    htmlFor="platformFilter"
+                  >
                     Platform
                   </label>
                   <select
@@ -457,7 +534,10 @@ export default function WorkerCommunityPage() {
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-sm font-medium text-zinc-700" htmlFor="issueFilter">
+                  <label
+                    className="text-sm font-medium text-zinc-700"
+                    htmlFor="issueFilter"
+                  >
                     Issue Type
                   </label>
                   <select
@@ -479,9 +559,9 @@ export default function WorkerCommunityPage() {
                   variant="secondary"
                   className="w-full"
                   onClick={() => {
-                    setSortBy('new');
-                    setPlatformFilter('');
-                    setIssueFilter('');
+                    setSortBy("new");
+                    setPlatformFilter("");
+                    setIssueFilter("");
                   }}
                   disabled={!hasFilters}
                 >
@@ -496,8 +576,12 @@ export default function WorkerCommunityPage() {
               <Card>
                 <CardContent className="flex flex-col items-center gap-2 py-10 text-center">
                   <ShieldAlert className="h-8 w-8 text-zinc-400" />
-                  <p className="text-zinc-700">No posts found for selected filters.</p>
-                  <p className="text-sm text-zinc-500">Try another filter or create the first post.</p>
+                  <p className="text-zinc-700">
+                    No posts found for selected filters.
+                  </p>
+                  <p className="text-sm text-zinc-500">
+                    Try another filter or create the first post.
+                  </p>
                 </CardContent>
               </Card>
             ) : (
@@ -505,7 +589,9 @@ export default function WorkerCommunityPage() {
                 const isCommentsOpen = Boolean(expandedComments[post.id]);
                 const postComments = commentsByPost[post.id] || [];
                 const loadingComments = Boolean(commentsLoading[post.id]);
-                const submittingComment = Boolean(submittingCommentFor[post.id]);
+                const submittingComment = Boolean(
+                  submittingCommentFor[post.id],
+                );
 
                 return (
                   <Card key={post.id} className="overflow-hidden">
@@ -514,16 +600,24 @@ export default function WorkerCommunityPage() {
                         <div className="flex w-16 flex-col items-center gap-1 border-r border-zinc-100 bg-zinc-50 py-4">
                           <Button
                             size="icon"
-                            variant={post.user_vote === 'up' ? 'default' : 'ghost'}
-                            onClick={() => handleVote(post.id, 'up')}
+                            variant={
+                              post.user_vote === "up" ? "default" : "ghost"
+                            }
+                            onClick={() => handleVote(post.id, "up")}
                           >
                             <ArrowBigUp className="h-5 w-5" />
                           </Button>
-                          <span className="text-sm font-semibold text-zinc-800">{post.score}</span>
+                          <span className="text-sm font-semibold text-zinc-800">
+                            {post.score}
+                          </span>
                           <Button
                             size="icon"
-                            variant={post.user_vote === 'down' ? 'destructive' : 'ghost'}
-                            onClick={() => handleVote(post.id, 'down')}
+                            variant={
+                              post.user_vote === "down"
+                                ? "destructive"
+                                : "ghost"
+                            }
+                            onClick={() => handleVote(post.id, "down")}
                           >
                             <ArrowBigDown className="h-5 w-5" />
                           </Button>
@@ -533,13 +627,23 @@ export default function WorkerCommunityPage() {
                           <div className="mb-3 flex flex-wrap items-center gap-2">
                             <Badge variant="outline">{post.platform}</Badge>
                             <Badge variant="secondary">{post.issue}</Badge>
-                            <Badge variant={statusVariant(post.status)}>{post.status}</Badge>
-                            <span className="text-xs text-zinc-500">{post.author_alias}</span>
-                            <span className="text-xs text-zinc-400">{formatDate(post.created_at)}</span>
+                            <Badge variant={statusVariant(post.status)}>
+                              {post.status}
+                            </Badge>
+                            <span className="text-xs text-zinc-500">
+                              {post.author_alias}
+                            </span>
+                            <span className="text-xs text-zinc-400">
+                              {formatDate(post.created_at)}
+                            </span>
                           </div>
 
-                          <h3 className="text-lg font-semibold text-zinc-900">{post.title}</h3>
-                          <p className="mt-2 whitespace-pre-wrap text-sm text-zinc-700">{post.description}</p>
+                          <h3 className="text-lg font-semibold text-zinc-900">
+                            {post.title}
+                          </h3>
+                          <p className="mt-2 whitespace-pre-wrap text-sm text-zinc-700">
+                            {post.description}
+                          </p>
 
                           {post.image_url && (
                             <img
@@ -549,64 +653,87 @@ export default function WorkerCommunityPage() {
                             />
                           )}
 
-                          {post.status === 'rejected' && post.moderation_note && (
-                            <p className="mt-3 rounded-md bg-red-50 p-3 text-sm text-red-700">
-                              Moderator note: {post.moderation_note}
-                            </p>
-                          )}
+                          {post.status === "rejected" &&
+                            post.moderation_note && (
+                              <p className="mt-3 rounded-md bg-red-50 p-3 text-sm text-red-700">
+                                Moderator note: {post.moderation_note}
+                              </p>
+                            )}
 
                           <div className="mt-4 flex flex-wrap items-center gap-3">
-                            <Button variant="ghost" size="sm" onClick={() => toggleComments(post.id)}>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => toggleComments(post.id)}
+                            >
                               <MessageSquare className="h-4 w-4" />
                               {post.comment_count} comments
                             </Button>
 
-                            {(user?.role === 'advocate' || user?.role === 'analyst') && post.status === 'pending' && (
-                              <div className="flex gap-2 border-l border-zinc-200 pl-3">
-                                <Button
-                                  variant="success"
-                                  size="sm"
-                                  onClick={() => handleModeration(post.id, 'approved')}
-                                >
-                                  Approve
-                                </Button>
-                                <Button
-                                  variant="destructive"
-                                  size="sm"
-                                  onClick={() => handleModeration(post.id, 'rejected')}
-                                >
-                                  Reject
-                                </Button>
-                              </div>
-                            )}
+                            {user?.role === "advocate" &&
+                              post.status === "pending" && (
+                                <div className="flex gap-2 border-l border-zinc-200 pl-3">
+                                  <Button
+                                    variant="success"
+                                    size="sm"
+                                    onClick={() =>
+                                      handleModeration(post.id, "approved")
+                                    }
+                                  >
+                                    Approve
+                                  </Button>
+                                  <Button
+                                    variant="destructive"
+                                    size="sm"
+                                    onClick={() =>
+                                      handleModeration(post.id, "rejected")
+                                    }
+                                  >
+                                    Reject
+                                  </Button>
+                                </div>
+                              )}
                           </div>
 
                           {isCommentsOpen && (
                             <div className="mt-3 space-y-3 rounded-md border border-zinc-200 bg-zinc-50 p-3">
                               {loadingComments ? (
-                                <p className="text-sm text-zinc-500">Loading comments...</p>
+                                <p className="text-sm text-zinc-500">
+                                  Loading comments...
+                                </p>
                               ) : postComments.length === 0 ? (
-                                <p className="text-sm text-zinc-500">No comments yet. Start the discussion.</p>
+                                <p className="text-sm text-zinc-500">
+                                  No comments yet. Start the discussion.
+                                </p>
                               ) : (
                                 postComments.map((comment) => (
-                                  <div key={comment.id} className="rounded-md border border-zinc-200 bg-white p-3">
+                                  <div
+                                    key={comment.id}
+                                    className="rounded-md border border-zinc-200 bg-white p-3"
+                                  >
                                     <div className="mb-1 flex items-center gap-2 text-xs text-zinc-500">
-                                      <span className="font-semibold text-zinc-700">{comment.author_alias}</span>
-                                      <span>{formatDate(comment.created_at)}</span>
+                                      <span className="font-semibold text-zinc-700">
+                                        {comment.author_alias}
+                                      </span>
+                                      <span>
+                                        {formatDate(comment.created_at)}
+                                      </span>
                                     </div>
-                                    <p className="whitespace-pre-wrap text-sm text-zinc-800">{comment.content}</p>
+                                    <p className="whitespace-pre-wrap text-sm text-zinc-800">
+                                      {comment.content}
+                                    </p>
                                   </div>
                                 ))
                               )}
 
                               <div className="space-y-2">
                                 <Textarea
-                                  value={commentDrafts[post.id] || ''}
+                                  value={commentDrafts[post.id] || ""}
                                   placeholder="Add your comment"
                                   onChange={(event) =>
                                     setCommentDrafts((prev) => ({
                                       ...prev,
-                                      [post.id]: event.target.value
+                                      [post.id]: event.target.value,
                                     }))
                                   }
                                 />
@@ -616,7 +743,9 @@ export default function WorkerCommunityPage() {
                                   onClick={() => submitComment(post.id)}
                                 >
                                   <SendHorizontal className="h-4 w-4" />
-                                  {submittingComment ? 'Posting...' : 'Post Comment'}
+                                  {submittingComment
+                                    ? "Posting..."
+                                    : "Post Comment"}
                                 </Button>
                               </div>
                             </div>

@@ -12,7 +12,7 @@ FairGig lets workers **log, verify, and understand** their earnings. It gives la
 
 ## 2. Design Direction
 
-- **Aesthetic**: Clean, utilitarian-professional. Think civic tech meets fintech. Not corporate cold — warm and empowering. Workers should feel the app is *on their side*.
+- **Aesthetic**: Clean, utilitarian-professional. Think civic tech meets fintech. Not corporate cold — warm and empowering. Workers should feel the app is _on their side_.
 - **Tone**: Honest, direct, no jargon. Data-forward. Badge/status-driven (verified ✓, flagged ⚠, anomaly 🔴).
 - **Palette**: Black and white. High contrast, clean, accessible.
   - Primary: Black (#000000) or Dark Slate (#1F2937)
@@ -30,58 +30,62 @@ FairGig lets workers **log, verify, and understand** their earnings. It gives la
 ## 3. The Four User Roles & Their Dashboards
 
 ### 3A — Gig Worker Dashboard
+
 The most important role. Must be simple, empowering, and mobile-friendly.
 
-| # | Screen | Key UI Elements |
-|---|--------|----------------|
-| 1 | **Home / Overview** | Earnings this week card, verified vs unverified badge count, anomaly alert banner (if any), quick-log CTA |
-| 2 | **Log a Shift** | Form: platform selector, date, hours worked, gross earned, platform deductions, net received. Simple enough for a rider to fill in 60 seconds |
-| 3 | **Bulk CSV Import** | Upload zone, column-mapping preview table, import confirmation |
-| 4 | **Screenshot Upload** | Drag-and-drop / camera upload, verification status tracker (pending / verified ✓ / flagged ⚠ / unverifiable) |
-| 5 | **Income Analytics** | Weekly/monthly earnings trend (line chart), effective hourly rate over time, platform commission rate tracker (per platform), city-wide median comparison bar |
-| 6 | **Heat Map** | Interactive city zone map showing high-earning areas by hour/day. AI-predicted hot zones highlighted. Historical zone comparison toggle |
-| 7 | **AI Recommendations** | Weekly personalised income tips panel. "Your commission rate is 3% above city median on Bykea." Opt-out toggle |
-| 8 | **Anomaly Alerts** | Card/banner: "Unusual deduction detected on 14 Apr — 34% vs your usual 18%." Human-readable explanation. Severity badge |
-| 9 | **Income Certificate** | Date range picker, preview of printable certificate, Download / Print button |
-| 10 | **Notifications** | Verification updates, anomaly alerts, recommendation pings |
+| #   | Screen                 | Key UI Elements                                                                                                                                               |
+| --- | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | **Home / Overview**    | Earnings this week card, verified vs unverified badge count, anomaly alert banner (if any), quick-log CTA                                                     |
+| 2   | **Log a Shift**        | Form: platform selector, date, hours worked, gross earned, platform deductions, net received. Simple enough for a rider to fill in 60 seconds                 |
+| 3   | **Bulk CSV Import**    | Upload zone, column-mapping preview table, import confirmation                                                                                                |
+| 4   | **Screenshot Upload**  | Drag-and-drop / camera upload, verification status tracker (pending / verified ✓ / flagged ⚠ / unverifiable)                                                  |
+| 5   | **Income Analytics**   | Weekly/monthly earnings trend (line chart), effective hourly rate over time, platform commission rate tracker (per platform), city-wide median comparison bar |
+| 6   | **Heat Map**           | Interactive city zone map showing high-earning areas by hour/day. AI-predicted hot zones highlighted. Historical zone comparison toggle                       |
+| 7   | **AI Recommendations** | Weekly personalised income tips panel. "Your commission rate is 3% above city median on Bykea." Opt-out toggle                                                |
+| 8   | **Anomaly Alerts**     | Card/banner: "Unusual deduction detected on 14 Apr — 34% vs your usual 18%." Human-readable explanation. Severity badge                                       |
+| 9   | **Income Certificate** | Date range picker, preview of printable certificate, Download / Print button                                                                                  |
+| 10  | **Notifications**      | Verification updates, anomaly alerts, recommendation pings                                                                                                    |
 
 ---
 
 ### 3B — Verifier Dashboard
+
 Reviews screenshot evidence. Needs clarity and speed — verifiers process a queue.
 
-| # | Screen | Key UI Elements |
-|---|--------|----------------|
-| 1 | **Review Queue** | List of pending submissions, oldest-first, filterable by platform and date. Queue stats: pending / reviewed today / flagged this week |
-| 2 | **Review Detail** | Side-by-side: uploaded screenshot (left) vs logged earnings figures (right). Action buttons: ✅ Confirm · ⚠ Flag Discrepancy · ❌ Mark Unverifiable. Note field when flagging |
-| 3 | **Search & Filter** | Filter queue by worker ID, platform, date range |
+| #   | Screen              | Key UI Elements                                                                                                                                                               |
+| --- | ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | **Review Queue**    | List of pending submissions, oldest-first, filterable by platform and date. Queue stats: pending / reviewed today / flagged this week                                         |
+| 2   | **Review Detail**   | Side-by-side: uploaded screenshot (left) vs logged earnings figures (right). Action buttons: ✅ Confirm · ⚠ Flag Discrepancy · ❌ Mark Unverifiable. Note field when flagging |
+| 3   | **Search & Filter** | Filter queue by worker ID, platform, date range                                                                                                                               |
 
 ---
 
-### 3C — Advocate / Analyst Dashboard
+### 3C — Advocate Dashboard
+
 Data-heavy. Desktop-first. This is where systemic patterns are spotted.
 
-| # | Screen | Key UI Elements |
-|---|--------|----------------|
-| 1 | **Analytics Overview** | Commission rate trends (multi-line chart per platform), income distribution heatmap by city zone, top complaint categories this week (bar chart), vulnerability flags count |
-| 2 | **Vulnerability List** | Table of workers with >20% month-on-month income drop. Export to CSV button |
-| 3 | **Grievance Board** | All complaints. Tag, cluster similar, escalate, resolve. Filter by platform / category / status |
-| 4 | **Forum Moderation** | Pin, lock, remove posts and polls from the community forum |
-| 5 | **Platform Scorecard** | Per-platform health: avg commission %, complaint volume, income drop rate |
+| #   | Screen                 | Key UI Elements                                                                                                                                                             |
+| --- | ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | **Analytics Overview** | Commission rate trends (multi-line chart per platform), income distribution heatmap by city zone, top complaint categories this week (bar chart), vulnerability flags count |
+| 2   | **Vulnerability List** | Table of workers with >20% month-on-month income drop. Export to CSV button                                                                                                 |
+| 3   | **Grievance Board**    | All complaints. Tag, cluster similar, escalate, resolve. Filter by platform / category / status                                                                             |
+| 4   | **Forum Moderation**   | Pin, lock, remove posts and polls from the community forum                                                                                                                  |
+| 5   | **Platform Scorecard** | Per-platform health: avg commission %, complaint volume, income drop rate                                                                                                   |
 
 ---
 
 ### 3D — Community / Worker Forum
+
 Reddit-style. Anonymous-friendly. The social layer of the platform.
 
-| # | Screen | Key UI Elements |
-|---|--------|----------------|
-| 1 | **Forum Feed** | Posts sorted by Trending / New / Top. Trending sidebar (top 10 this week) |
-| 2 | **Post Detail** | Title, body, platform tag, category tag. Upvote/downvote. Nested 2-level comment thread. Poll results if attached |
-| 3 | **Create Post** | Title, body, platform tag, category (Rate Cut / Deactivation / Tips / General), optional poll builder (binary or multi-choice) |
-| 4 | **Poll View** | Live % results, voter count, vote CTA |
-| 5 | **Search** | Search by keyword, platform, or category |
-| 6 | **Notifications** | Replies to your posts, poll results |
+| #   | Screen            | Key UI Elements                                                                                                                |
+| --- | ----------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | **Forum Feed**    | Posts sorted by Trending / New / Top. Trending sidebar (top 10 this week)                                                      |
+| 2   | **Post Detail**   | Title, body, platform tag, category tag. Upvote/downvote. Nested 2-level comment thread. Poll results if attached              |
+| 3   | **Create Post**   | Title, body, platform tag, category (Rate Cut / Deactivation / Tips / General), optional poll builder (binary or multi-choice) |
+| 4   | **Poll View**     | Live % results, voter count, vote CTA                                                                                          |
+| 5   | **Search**        | Search by keyword, platform, or category                                                                                       |
+| 6   | **Notifications** | Replies to your posts, poll results                                                                                            |
 
 ---
 
@@ -103,11 +107,13 @@ These appear across all roles — design them once, use everywhere:
 ## 5. Auth Screens Specification
 
 ### Roles
+
 - **Worker** — Auto-approved on registration
 - **Verifier** — Requires admin approval
 - **Advocate** — Requires admin approval
 
 ### Design Principles
+
 - Friendly, approachable UI suitable for non-tech-savvy users
 - Clear role selection with visual differentiation
 - Accessible form inputs with helpful placeholders
@@ -118,6 +124,7 @@ These appear across all roles — design them once, use everywhere:
 ### Login Page (`LoginPage.jsx`)
 
 **Layout:**
+
 - Centered card layout on light background
 - Logo/brand at top
 - Form fields stacked vertically
@@ -126,10 +133,12 @@ These appear across all roles — design them once, use everywhere:
 - Link to Register page at bottom
 
 **Form Fields:**
+
 1. **Email** — input type="email", placeholder "your@email.com"
 2. **Password** — input type="password", placeholder "Enter your password"
 
 **Actions:**
+
 - "Sign In" button (primary)
 - "Forgot password?" link
 - "Don't have an account? Sign up" link
@@ -139,12 +148,14 @@ These appear across all roles — design them once, use everywhere:
 ### Register Page (`RegisterPage.jsx`)
 
 **Layout:**
+
 - Centered card layout matching Login page
 - Clear heading: "Create your account"
 - Subheading: "Join FairGig"
 - Form fields with role selection prominently displayed
 
 **Form Fields:**
+
 1. **Full Name** — text input
 2. **Email** — email input
 3. **Role Selection** — visual cards:
@@ -155,6 +166,7 @@ These appear across all roles — design them once, use everywhere:
 5. **Confirm Password** — must match
 
 **Role Card Design:**
+
 ```
 ┌─────────────────────────────────────┐
 │  🧑‍💼  Worker                        │
@@ -176,6 +188,7 @@ These appear across all roles — design them once, use everywhere:
 ```
 
 **Actions:**
+
 - "Create Account" button (primary)
 - "Already have an account? Sign in" link
 

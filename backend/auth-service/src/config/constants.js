@@ -8,7 +8,6 @@ module.exports = {
   ROLES: {
     WORKER: 'worker',
     VERIFIER: 'verifier',
-    ANALYST: 'analyst',
     ADVOCATE: 'advocate'
   },
   USER_STATUS: {
