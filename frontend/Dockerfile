@@ -1,4 +1,4 @@
-FROM node:18-alpine AS build
+FROM public.ecr.aws/docker/library/node:18-alpine AS build
 
 WORKDIR /app
 
@@ -19,7 +19,7 @@ ENV VITE_GEOCODING_API_URL=$VITE_GEOCODING_API_URL
 
 RUN npm run build
 
-FROM nginx:alpine
+FROM public.ecr.aws/docker/library/nginx:alpine
 
 COPY --from=build /app/dist /usr/share/nginx/html
 
