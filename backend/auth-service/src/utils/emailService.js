@@ -1,12 +1,16 @@
-const transporter = require('../config/email');
+const { transporter, emailConfig } = require('../config/email');
 
 class EmailService {
   async sendEmail(to, subject, html) {
+    if (!emailConfig.isConfigured) {
+      const error = new Error('Email service is not configured');
+      error.code = 'EMAIL_NOT_CONFIGURED';
+      throw error;
+    }
+
     try {
-      if (!process.env.SMTP_USER) return;
-      
       const emailPromise = transporter.sendMail({
-        from: process.env.SMTP_USER,
+        from: emailConfig.from,
         to,
         subject,
         html
@@ -14,7 +18,12 @@ class EmailService {
       
       const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Email timeout')), 10000));
       await Promise.race([emailPromise, timeoutPromise]);
-    } catch (error) {}
+    } catch (error) {
+      console.error('Email delivery error:', error.message);
+      const wrappedError = new Error('Unable to deliver email right now. Please try again shortly.');
+      wrappedError.code = error.code || 'EMAIL_SEND_FAILED';
+      throw wrappedError;
+    }
   }
 
   async sendOTPEmail(email, name, otp) {
