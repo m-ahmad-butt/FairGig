@@ -8,7 +8,7 @@ let notificationSocket = null;
 export const initMessageSocket = () => {
   if (!messageSocket) {
     const token = localStorage.getItem('token');
-    
+
     messageSocket = io(API_URL, {
       path: '/socket.io/messages',
       auth: {
@@ -36,7 +36,7 @@ export const initMessageSocket = () => {
 export const initNotificationSocket = () => {
   if (!notificationSocket) {
     const token = localStorage.getItem('token');
-    
+
     notificationSocket = io(API_URL, {
       path: '/socket.io/notifications',
       auth: {

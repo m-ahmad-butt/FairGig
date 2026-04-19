@@ -49,7 +49,7 @@ export default function LoginPage() {
 
     try {
       const result = await authService.login(formData.email, formData.password);
-      
+
       toast.success(result.message);
 
       // Check if onboarding is needed
@@ -60,7 +60,7 @@ export default function LoginPage() {
       // Login is only allowed for verified users; treat missing emailVerified as verified.
       const emailNotVerified = user.emailVerified === false;
       const needsOnboarding = isWorkerRole && (emailNotVerified || locationMissing || workerProfileMissing);
-      
+
       if (needsOnboarding) {
         navigate('/onboarding', { state: { email: formData.email, role: user.role } });
       } else {
@@ -83,7 +83,7 @@ export default function LoginPage() {
           <h2 className="text-2xl font-bold text-gray-900">Welcome back</h2>
           <p className="mt-2 text-gray-600">Sign in to your FairGig account</p>
         </div>
-        
+
         <form className="space-y-5" onSubmit={handleSubmit}>
           <div>
             <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
