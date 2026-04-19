@@ -211,11 +211,13 @@ deploy:node-services:
       sudo docker stop ${SERVICE_NAME} >/dev/null 2>&1 || true;
       sudo docker rm -f ${SERVICE_NAME} >/dev/null 2>&1 || true;
       sudo docker rm -f ${MONGO_CONTAINER} >/dev/null 2>&1 || true;
-      sudo docker run -d --name ${MONGO_CONTAINER} --network ${DEPLOY_NETWORK} --restart unless-stopped -p ${MONGO_HOST_PORT}:27017 -v ${MONGO_CONTAINER}-data:/data/db mongo:7 >/dev/null;
+      sudo docker run -d --name ${MONGO_CONTAINER} --network ${DEPLOY_NETWORK} --restart unless-stopped -p ${MONGO_HOST_PORT}:27017 -v ${MONGO_CONTAINER}-data:/data/db mongo:7 --replSet rs0 >/dev/null;
+      sleep 5;
+      sudo docker exec ${MONGO_CONTAINER} mongosh --eval 'rs.initiate({_id: \"rs0\", members: [{_id: 0, host: \"${MONGO_CONTAINER}:27017\"}]})' >/dev/null 2>&1 || true;
       sudo docker rm -f ${MONGO_EXPRESS_CONTAINER} >/dev/null 2>&1 || true;
       sudo docker run -d --name ${MONGO_EXPRESS_CONTAINER} --network ${DEPLOY_NETWORK} --restart unless-stopped -p ${MONGO_EXPRESS_PORT}:8081 -e ME_CONFIG_MONGODB_URL='mongodb://${MONGO_CONTAINER}:27017/?directConnection=true' -e ME_CONFIG_BASICAUTH=false mongo-express:latest >/dev/null;
       sudo docker pull ${IMAGE_REPO}:${CI_COMMIT_SHORT_SHA};
-      sudo docker run -d --name ${SERVICE_NAME} --network ${DEPLOY_NETWORK} --restart unless-stopped -p ${SERVICE_PORT}:${SERVICE_PORT} -e PORT=${SERVICE_PORT} -e SERVICE_NAME=${SERVICE_NAME} -e FRONTEND_URL='${FRONTEND_URL}' -e DATABASE_URL='mongodb://${MONGO_CONTAINER}:27017/${DATABASE_NAME}' -e JWT_SECRET='${JWT_SECRET}' -e JWT_REFRESH_SECRET='${JWT_REFRESH_SECRET}' -e EMAIL_HOST='${EMAIL_HOST}' -e EMAIL_PORT='${EMAIL_PORT}' -e EMAIL_USER='${EMAIL_USER}' -e EMAIL_PASS='${EMAIL_PASS}' ${IMAGE_REPO}:${CI_COMMIT_SHORT_SHA};
+      sudo docker run -d --name ${SERVICE_NAME} --network ${DEPLOY_NETWORK} --restart unless-stopped -p ${SERVICE_PORT}:${SERVICE_PORT} -e PORT=${SERVICE_PORT} -e SERVICE_NAME=${SERVICE_NAME} -e FRONTEND_URL='${FRONTEND_URL}' -e DATABASE_URL='mongodb://${MONGO_CONTAINER}:27017/${DATABASE_NAME}?replicaSet=rs0' -e JWT_SECRET='${JWT_SECRET}' -e JWT_REFRESH_SECRET='${JWT_REFRESH_SECRET}' -e EMAIL_HOST='${EMAIL_HOST}' -e EMAIL_PORT='${EMAIL_PORT}' -e EMAIL_USER='${EMAIL_USER}' -e EMAIL_PASS='${EMAIL_PASS}' ${IMAGE_REPO}:${CI_COMMIT_SHORT_SHA};
       sudo docker image prune -af >/dev/null 2>&1 || true"
 
 deploy:python-services:
@@ -266,11 +268,13 @@ deploy:python-services:
       sudo docker stop ${SERVICE_NAME} >/dev/null 2>&1 || true;
       sudo docker rm -f ${SERVICE_NAME} >/dev/null 2>&1 || true;
       sudo docker rm -f ${MONGO_CONTAINER} >/dev/null 2>&1 || true;
-      sudo docker run -d --name ${MONGO_CONTAINER} --network ${DEPLOY_NETWORK} --restart unless-stopped -p ${MONGO_HOST_PORT}:27017 -v ${MONGO_CONTAINER}-data:/data/db mongo:7 >/dev/null;
+      sudo docker run -d --name ${MONGO_CONTAINER} --network ${DEPLOY_NETWORK} --restart unless-stopped -p ${MONGO_HOST_PORT}:27017 -v ${MONGO_CONTAINER}-data:/data/db mongo:7 --replSet rs0 >/dev/null;
+      sleep 5;
+      sudo docker exec ${MONGO_CONTAINER} mongosh --eval 'rs.initiate({_id: \"rs0\", members: [{_id: 0, host: \"${MONGO_CONTAINER}:27017\"}]})' >/dev/null 2>&1 || true;
       sudo docker rm -f ${MONGO_EXPRESS_CONTAINER} >/dev/null 2>&1 || true;
       sudo docker run -d --name ${MONGO_EXPRESS_CONTAINER} --network ${DEPLOY_NETWORK} --restart unless-stopped -p ${MONGO_EXPRESS_PORT}:8081 -e ME_CONFIG_MONGODB_URL='mongodb://${MONGO_CONTAINER}:27017/?directConnection=true' -e ME_CONFIG_BASICAUTH=false mongo-express:latest >/dev/null;
       sudo docker pull ${IMAGE_REPO}:${CI_COMMIT_SHORT_SHA};
-      sudo docker run -d --name ${SERVICE_NAME} --network ${DEPLOY_NETWORK} --restart unless-stopped -p ${SERVICE_PORT}:${SERVICE_PORT} -e PORT=${SERVICE_PORT} -e SERVICE_NAME=${SERVICE_NAME} -e FRONTEND_URL='${FRONTEND_URL}' -e DATABASE_URL='mongodb://${MONGO_CONTAINER}:27017/${DATABASE_NAME}' ${IMAGE_REPO}:${CI_COMMIT_SHORT_SHA} uvicorn app.main:app --host 0.0.0.0 --port ${SERVICE_PORT};
+      sudo docker run -d --name ${SERVICE_NAME} --network ${DEPLOY_NETWORK} --restart unless-stopped -p ${SERVICE_PORT}:${SERVICE_PORT} -e PORT=${SERVICE_PORT} -e SERVICE_NAME=${SERVICE_NAME} -e FRONTEND_URL='${FRONTEND_URL}' -e DATABASE_URL='mongodb://${MONGO_CONTAINER}:27017/${DATABASE_NAME}?replicaSet=rs0' ${IMAGE_REPO}:${CI_COMMIT_SHORT_SHA} uvicorn app.main:app --host 0.0.0.0 --port ${SERVICE_PORT};
       sudo docker image prune -af >/dev/null 2>&1 || true"
 
 deploy:frontend:
