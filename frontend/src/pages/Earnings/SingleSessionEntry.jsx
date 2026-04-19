@@ -9,6 +9,20 @@ import { Input } from '../../components/ui/input';
 import { getPlatformOptions } from '../../utils/workerProfileOptions';
 
 const ERROR_FIELD_CLASS = 'border-red-300 focus-visible:ring-red-600';
+const ALLOWED_EVIDENCE_TYPES = [
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+];
+const ALLOWED_EVIDENCE_ACCEPT =
+  'image/jpeg,image/png,image/webp,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+
+function isImageEvidenceType(mimeType) {
+  return String(mimeType || '').startsWith('image/');
+}
 
 export default function SingleSessionEntry({ onComplete }) {
   const [step, setStep] = useState(1);
@@ -165,17 +179,21 @@ export default function SingleSessionEntry({ onComplete }) {
     const file = e.target.files?.[0];
     if (!file) return;
     
-    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
-      toast.error('Only JPG, PNG, or WebP images allowed');
+    if (!ALLOWED_EVIDENCE_TYPES.includes(file.type)) {
+      toast.error('Allowed file types: JPG, PNG, WebP, PDF, DOC, DOCX');
       return;
     }
     if (file.size > 10 * 1024 * 1024) {
       toast.error('File must be under 10MB');
       return;
     }
+
+    if (evidencePreview) {
+      URL.revokeObjectURL(evidencePreview);
+    }
     
     setEvidenceFile(file);
-    setEvidencePreview(URL.createObjectURL(file));
+    setEvidencePreview(isImageEvidenceType(file.type) ? URL.createObjectURL(file) : null);
   };
 
   const handleSubmitCard2 = async () => {
@@ -208,7 +226,7 @@ export default function SingleSessionEntry({ onComplete }) {
       
       onComplete?.(sessionId);
     } catch (error) {
-      toast.error(error.message || 'Image upload failed. Retry or remove image to continue without screenshot.');
+      toast.error(error.message || 'Evidence upload failed. Retry or remove file to continue without evidence.');
     } finally {
       setLoading(false);
       setUploadProgress(0);
@@ -356,7 +374,7 @@ export default function SingleSessionEntry({ onComplete }) {
               <div>
                 <CardTitle>Evidence Upload</CardTitle>
                 <CardDescription>
-                  Attach an optional screenshot for this session.
+                  Attach optional evidence (image or document) for this session.
                 </CardDescription>
               </div>
               <Badge variant="secondary">Step 2 of 2</Badge>
@@ -370,10 +388,15 @@ export default function SingleSessionEntry({ onComplete }) {
             >
               {evidencePreview ? (
                 <img src={evidencePreview} alt="Preview" className="mx-auto max-h-60 rounded-md border border-zinc-200 object-contain" />
+              ) : evidenceFile ? (
+                <div className="text-zinc-600">
+                  <p className="font-medium">File selected</p>
+                  <p className="mt-1 text-sm">{evidenceFile.name}</p>
+                </div>
               ) : (
                 <div className="text-zinc-600">
-                  <p className="font-medium">Click to upload image</p>
-                  <p className="mt-1 text-sm">JPG, PNG, WebP up to 10MB</p>
+                  <p className="font-medium">Click to upload evidence</p>
+                  <p className="mt-1 text-sm">JPG, PNG, WebP, PDF, DOC, DOCX up to 10MB</p>
                 </div>
               )}
             </div>
@@ -381,7 +404,7 @@ export default function SingleSessionEntry({ onComplete }) {
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/jpeg,image/png,image/webp"
+              accept={ALLOWED_EVIDENCE_ACCEPT}
               onChange={handleFileSelect}
               className="hidden"
             />
@@ -393,6 +416,9 @@ export default function SingleSessionEntry({ onComplete }) {
                   type="button"
                   onClick={() => {
                     setEvidenceFile(null);
+                    if (evidencePreview) {
+                      URL.revokeObjectURL(evidencePreview);
+                    }
                     setEvidencePreview(null);
                     if (fileInputRef.current) {
                       fileInputRef.current.value = '';

@@ -13,7 +13,14 @@ const {
 
 const router = express.Router();
 
-const ALLOWED_UPLOAD_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
+const ALLOWED_UPLOAD_TYPES = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+]);
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -22,7 +29,7 @@ const upload = multer({
   },
   fileFilter: (req, file, callback) => {
     if (!ALLOWED_UPLOAD_TYPES.has(file.mimetype)) {
-      const error = new Error('Only JPG, PNG, or WebP images are allowed');
+      const error = new Error('Allowed file types: JPG, PNG, WebP, PDF, DOC, DOCX');
       error.code = 'UNSUPPORTED_MEDIA_TYPE';
       callback(error);
       return;
@@ -40,7 +47,7 @@ function handleEvidenceUpload(req, res, next) {
     }
 
     if (error.code === 'LIMIT_FILE_SIZE') {
-      res.status(400).json({ error: 'Image must be under 10MB' });
+      res.status(400).json({ error: 'File must be under 10MB' });
       return;
     }
 
@@ -49,7 +56,7 @@ function handleEvidenceUpload(req, res, next) {
       return;
     }
 
-    res.status(400).json({ error: error.message || 'Invalid image upload' });
+    res.status(400).json({ error: error.message || 'Invalid evidence file upload' });
   });
 }
 

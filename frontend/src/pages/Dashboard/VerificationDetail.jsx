@@ -49,6 +49,11 @@ function formatDisplayDate(value) {
   return parsed.toLocaleDateString('en-PK');
 }
 
+function isImageEvidenceUrl(url) {
+  const normalized = String(url || '').toLowerCase().split('?')[0];
+  return ['.jpg', '.jpeg', '.png', '.webp'].some((extension) => normalized.endsWith(extension));
+}
+
 export default function VerificationDetailPage() {
   const navigate = useNavigate();
   const { id } = useParams();
@@ -65,6 +70,7 @@ export default function VerificationDetailPage() {
   const [aiAnalysis, setAiAnalysis] = useState(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState(false);
+  const [aiErrorMessage, setAiErrorMessage] = useState('');
 
   useEffect(() => {
     loadData();
@@ -112,7 +118,14 @@ export default function VerificationDetailPage() {
   const loadAiAnalysis = async ({ evidenceData, sessionData, earningData }) => {
     setAiLoading(true);
     setAiError(false);
+    setAiErrorMessage('');
     try {
+      if (!isImageEvidenceUrl(evidenceData?.image_url)) {
+        setAiError(true);
+        setAiErrorMessage('AI screenshot analysis currently supports image evidence only (JPG, PNG, WebP).');
+        return;
+      }
+
       const workerId = evidenceData?.worker_id;
       const sessionId = evidenceData?.session_id || sessionData?.id;
 
@@ -190,6 +203,7 @@ export default function VerificationDetailPage() {
     } catch (error) {
       console.error('AI analysis failed:', error);
       setAiError(true);
+      setAiErrorMessage('AI analysis is currently unavailable for this evidence.');
     } finally {
       setAiLoading(false);
     }
@@ -430,7 +444,7 @@ export default function VerificationDetailPage() {
                       </div>
                     ) : aiError ? (
                       <div className="text-center py-8">
-                        <p className="text-gray-500 mb-4">AI analysis unavailable</p>
+                        <p className="text-gray-500 mb-4">{aiErrorMessage || 'AI analysis unavailable'}</p>
                         <button 
                           onClick={() => loadAiAnalysis({ evidenceData: evidence, sessionData: session, earningData: earning })}
                           className="px-4 py-2 bg-gray-900 text-white text-sm rounded-lg hover:bg-gray-800"

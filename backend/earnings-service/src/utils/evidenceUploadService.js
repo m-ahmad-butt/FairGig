@@ -2,7 +2,16 @@ const crypto = require('crypto');
 const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 
-const ALLOWED_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
+const ALLOWED_MIME_TYPES = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+]);
+const ALLOWED_MIME_MESSAGE =
+  'Unsupported file type. Allowed: image/jpeg, image/png, image/webp, application/pdf, application/msword, application/vnd.openxmlformats-officedocument.wordprocessingml.document.';
 
 function getFirstDefinedEnv(keys, defaultValue = undefined) {
   for (const key of keys) {
@@ -43,6 +52,18 @@ function getExtensionFromMime(fileType) {
 
   if (fileType === 'image/webp') {
     return 'webp';
+  }
+
+  if (fileType === 'application/pdf') {
+    return 'pdf';
+  }
+
+  if (fileType === 'application/msword') {
+    return 'doc';
+  }
+
+  if (fileType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+    return 'docx';
   }
 
   return null;
@@ -146,7 +167,7 @@ function buildPublicImageUrl({ bucket, region, key, publicBaseUrl, endpoint, for
 function buildObjectKey({ sessionId, workerId, fileType, keyPrefix }) {
   const extension = getExtensionFromMime(fileType);
   if (!extension) {
-    const validationError = new Error('Unsupported file type. Allowed: image/jpeg, image/png, image/webp.');
+    const validationError = new Error(ALLOWED_MIME_MESSAGE);
     validationError.code = 'VALIDATION_ERROR';
     throw validationError;
   }
@@ -162,7 +183,7 @@ function buildObjectKey({ sessionId, workerId, fileType, keyPrefix }) {
 async function createEvidenceUploadUrls({ sessionId, workerId, fileType }) {
   const normalizedFileType = String(fileType || '').toLowerCase().trim();
   if (!ALLOWED_MIME_TYPES.has(normalizedFileType)) {
-    const validationError = new Error('Unsupported file type. Allowed: image/jpeg, image/png, image/webp.');
+    const validationError = new Error(ALLOWED_MIME_MESSAGE);
     validationError.code = 'VALIDATION_ERROR';
     throw validationError;
   }
@@ -205,13 +226,13 @@ async function createEvidenceUploadUrls({ sessionId, workerId, fileType }) {
 async function uploadEvidenceBuffer({ sessionId, workerId, fileType, buffer }) {
   const normalizedFileType = String(fileType || '').toLowerCase().trim();
   if (!ALLOWED_MIME_TYPES.has(normalizedFileType)) {
-    const validationError = new Error('Unsupported file type. Allowed: image/jpeg, image/png, image/webp.');
+    const validationError = new Error(ALLOWED_MIME_MESSAGE);
     validationError.code = 'VALIDATION_ERROR';
     throw validationError;
   }
 
   if (!Buffer.isBuffer(buffer) || buffer.length === 0) {
-    const validationError = new Error('Image payload is required.');
+    const validationError = new Error('Evidence file payload is required.');
     validationError.code = 'VALIDATION_ERROR';
     throw validationError;
   }

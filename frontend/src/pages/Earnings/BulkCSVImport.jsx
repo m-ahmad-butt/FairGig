@@ -9,6 +9,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../..
 import { getPlatformOptions } from '../../utils/workerProfileOptions';
 
 const CSV_TEMPLATE = 'platform,session_date,start_time,end_time,trips_completed,gross_earned,platform_deductions,net_received';
+const ALLOWED_EVIDENCE_TYPES = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+]);
+const EVIDENCE_ACCEPT =
+  'image/jpeg,image/png,image/webp,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 
 const TABLE_FIELD_CLASS = 'h-8 rounded-md border border-zinc-200 bg-white px-2 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-900';
 
@@ -261,6 +271,16 @@ export default function BulkCSVImport({ onComplete }) {
   const handleFileSelect = (index, e) => {
     const file = e.target.files?.[0];
     if (file) {
+      if (!ALLOWED_EVIDENCE_TYPES.has(file.type)) {
+        toast.error('Allowed file types: JPG, PNG, WebP, PDF, DOC, DOCX');
+        return;
+      }
+
+      if (file.size > 10 * 1024 * 1024) {
+        toast.error('File must be under 10MB');
+        return;
+      }
+
       setFiles(prev => ({ ...prev, [index]: file }));
     }
   };
@@ -607,7 +627,7 @@ export default function BulkCSVImport({ onComplete }) {
                       </div>
                       <input
                         type="file"
-                        accept="image/jpeg,image/png,image/webp"
+                        accept={EVIDENCE_ACCEPT}
                         onChange={(e) => handleFileSelect(idx, e)}
                         className="block text-xs text-zinc-600 file:mr-3 file:cursor-pointer file:rounded-md file:border-0 file:bg-zinc-100 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-zinc-800 hover:file:bg-zinc-200"
                       />
