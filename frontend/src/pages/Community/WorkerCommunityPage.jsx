@@ -187,12 +187,12 @@ export default function WorkerCommunityPage() {
         prev.map((post) =>
           post.id === postId
             ? {
-                ...post,
-                upvotes: result.upvotes,
-                downvotes: result.downvotes,
-                score: result.score,
-                user_vote: result.user_vote
-              }
+              ...post,
+              upvotes: result.upvotes,
+              downvotes: result.downvotes,
+              score: result.score,
+              user_vote: result.user_vote
+            }
             : post
         )
       );
@@ -252,7 +252,7 @@ export default function WorkerCommunityPage() {
       );
 
       setCommentDrafts((prev) => ({ ...prev, [postId]: '' }));
-  setExpandedComments((prev) => ({ ...prev, [postId]: true }));
+      setExpandedComments((prev) => ({ ...prev, [postId]: true }));
     } catch (error) {
       toast.error(error.message || 'Failed to add comment');
     } finally {
