@@ -25,7 +25,12 @@ workflow:
   rules:
     - if: '$CI_COMMIT_BRANCH == "main"'
 
+.docker-login: &docker-login
+  before_script:
+    - echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
+
 build:backend-images:
+  <<: *docker-login
   stage: build
   image: docker:24.0.5
   services:
@@ -57,8 +62,6 @@ build:backend-images:
       - SERVICE_NAME: anomaly-service
         SERVICE_PATH: backend/anomaly-service
         IMAGE_VAR: ANOMALY_IMAGE
-  before_script:
-    - echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
   script:
     - IMAGE_REPO="$(eval "printf '%s' \"\${$IMAGE_VAR}\"")"
     - if [ -z "$IMAGE_REPO" ]; then IMAGE_REPO="${DOCKER_REGISTRY_URL}/${DOCKER_USERNAME}/${SERVICE_NAME}"; fi
@@ -68,13 +71,12 @@ build:backend-images:
   <<: *main_branch_rules
 
 build:frontend-image:
+  <<: *docker-login
   stage: build
   image: docker:24.0.5
   services:
     - name: docker:24.0.5-dind
       alias: docker
-  before_script:
-    - echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
   script:
     - IMAGE_REPO="${FRONTEND_IMAGE:-${DOCKER_REGISTRY_URL}/${DOCKER_USERNAME}/s-frontend}"
     - >
@@ -89,40 +91,25 @@ build:frontend-image:
     - docker push "${IMAGE_REPO}:latest"
   <<: *main_branch_rules
 
+.ssh-setup: &ssh-setup
+  - apk add --no-cache openssh-client
+  - mkdir -p ~/.ssh
+  - chmod 700 ~/.ssh
+  - touch ~/.ssh/id_rsa
+  - chmod 600 ~/.ssh/id_rsa
+  - export DOCKER_PASSWORD_B64="$(printf '%s' "$DOCKER_PASSWORD" | base64 | tr -d '\n')"
+
 .deploy_base: &deploy_base
   image: alpine:3.20
   before_script:
-    - apk add --no-cache openssh-client
-    - mkdir -p ~/.ssh
-    - chmod 700 ~/.ssh
-    - touch ~/.ssh/id_rsa
-    - chmod 600 ~/.ssh/id_rsa
-    - export DOCKER_PASSWORD_B64="$(printf '%s' "$DOCKER_PASSWORD" | base64 | tr -d '\n')"
+    - *ssh-setup
   <<: *main_branch_rules
 
 deploy:api-gateway:
   <<: *deploy_base
   stage: deploy-gateway
   script:
-    - |
-      if [ -z "$API_GATEWAY_EC2_IP" ]; then
-        echo "Missing required variable: API_GATEWAY_EC2_IP"
-        exit 1
-      fi
-    - |
-      for var in AUTH_SERVICE_URL EARNINGS_SERVICE_URL GRIEVANCE_SERVICE_URL CERTIFICATE_SERVICE_URL SHARED_AGENT_SERVICE_URL ANALYTICS_SERVICE_URL ANOMALY_SERVICE_URL; do
-        value="$(eval "printf '%s' \"\${$var}\"")"
-        if [ -z "$value" ]; then
-          echo "Missing required variable: $var"
-          exit 1
-        fi
-      done
     - SSH_KEY_CONTENT="${SOFTEC_NOT_SSH:-$SSH_PRIVATE_KEY}"
-    - |
-      if [ -z "$SSH_KEY_CONTENT" ]; then
-        echo "Missing required SSH key variable: SOFTEC_NOT_SSH or SSH_PRIVATE_KEY"
-        exit 1
-      fi
     - printf '%s\n' "$SSH_KEY_CONTENT" > ~/.ssh/id_rsa
     - IMAGE_REPO="${API_GATEWAY_IMAGE:-${DOCKER_REGISTRY_URL}/${DOCKER_USERNAME}/api-gateway}"
     - >
@@ -133,7 +120,7 @@ deploy:api-gateway:
       sudo docker stop api-gateway >/dev/null 2>&1 || true;
       sudo docker rm -f api-gateway >/dev/null 2>&1 || true;
       sudo docker pull ${IMAGE_REPO}:${CI_COMMIT_SHORT_SHA};
-      sudo docker run -d --name api-gateway --network ${DEPLOY_NETWORK} --restart unless-stopped -p 8080:8080 -e PORT=8080 -e AUTH_SERVICE_URL='${AUTH_SERVICE_URL}' -e EARNINGS_SERVICE_URL='${EARNINGS_SERVICE_URL}' -e GRIEVANCE_SERVICE_URL='${GRIEVANCE_SERVICE_URL}' -e CERTIFICATE_SERVICE_URL='${CERTIFICATE_SERVICE_URL}' -e SHARED_AGENT_SERVICE_URL='${SHARED_AGENT_SERVICE_URL}' -e ANALYTICS_SERVICE_URL='${ANALYTICS_SERVICE_URL}' -e ANOMALY_SERVICE_URL='${ANOMALY_SERVICE_URL}' ${IMAGE_REPO}:${CI_COMMIT_SHORT_SHA};
+      sudo docker run -d --name api-gateway --network ${DEPLOY_NETWORK} --restart unless-stopped -p 8080:8080 -e PORT=8080 -e AUTH_SERVICE_URL='http://65.0.66.159:4001' -e EARNINGS_SERVICE_URL='http://13.200.221.201:4002' -e GRIEVANCE_SERVICE_URL='http://13.200.10.104:4003' -e CERTIFICATE_SERVICE_URL='http://13.200.9.95:4004' -e SHARED_AGENT_SERVICE_URL='http://3.110.54.136:4005' -e ANALYTICS_SERVICE_URL='http://13.233.29.255:8001' -e ANOMALY_SERVICE_URL='http://13.233.160.241:8002' ${IMAGE_REPO}:${CI_COMMIT_SHORT_SHA};
       sudo docker image prune -af >/dev/null 2>&1 || true"
   environment:
     name: production/api-gateway
@@ -148,7 +135,6 @@ deploy:node-services:
         SERVICE_PORT: "4001"
         DATABASE_NAME: auth_service
         MONGO_HOST_PORT: "27017"
-        MONGO_EXPRESS_PORT: "8081"
         IMAGE_VAR: AUTH_IMAGE
         SSH_KEY_VAR: SOFTEC_LF_SSH
         TARGET_HOST_VAR: AUTH_EC2_IP
@@ -156,7 +142,6 @@ deploy:node-services:
         SERVICE_PORT: "4002"
         DATABASE_NAME: earnings_service
         MONGO_HOST_PORT: "27018"
-        MONGO_EXPRESS_PORT: "8082"
         IMAGE_VAR: EARNINGS_IMAGE
         SSH_KEY_VAR: SOFTEC_LF_SSH
         TARGET_HOST_VAR: EARNINGS_EC2_IP
@@ -164,7 +149,6 @@ deploy:node-services:
         SERVICE_PORT: "4003"
         DATABASE_NAME: grievance_service
         MONGO_HOST_PORT: "27019"
-        MONGO_EXPRESS_PORT: "8083"
         IMAGE_VAR: GRIEVANCE_IMAGE
         SSH_KEY_VAR: SOFTEC_LF_SSH
         TARGET_HOST_VAR: GRIEVANCE_EC2_IP
@@ -172,7 +156,6 @@ deploy:node-services:
         SERVICE_PORT: "4004"
         DATABASE_NAME: certificate_service
         MONGO_HOST_PORT: "27020"
-        MONGO_EXPRESS_PORT: "8084"
         IMAGE_VAR: CERTIFICATE_IMAGE
         SSH_KEY_VAR: SOFTEC_LF_SSH
         TARGET_HOST_VAR: CERTIFICATE_EC2_IP
@@ -180,29 +163,16 @@ deploy:node-services:
         SERVICE_PORT: "4005"
         DATABASE_NAME: shared_agent_service
         MONGO_HOST_PORT: "27021"
-        MONGO_EXPRESS_PORT: "8085"
         IMAGE_VAR: SHARED_AGENT_IMAGE
         SSH_KEY_VAR: SOFTEC_NOT_SSH
         TARGET_HOST_VAR: SHARED_AGENT_EC2_IP
   script:
     - SSH_KEY_CONTENT="$(eval "printf '%s' \"\${$SSH_KEY_VAR}\"")"
-    - if [ -z "$SSH_KEY_CONTENT" ]; then SSH_KEY_CONTENT="$SSH_PRIVATE_KEY"; fi
-    - |
-      if [ -z "$SSH_KEY_CONTENT" ]; then
-        echo "Missing required SSH key variable: $SSH_KEY_VAR or SSH_PRIVATE_KEY"
-        exit 1
-      fi
     - printf '%s\n' "$SSH_KEY_CONTENT" > ~/.ssh/id_rsa
     - TARGET_HOST="$(eval "printf '%s' \"\${$TARGET_HOST_VAR}\"")"
-    - |
-      if [ -z "$TARGET_HOST" ]; then
-        echo "Missing required variable: $TARGET_HOST_VAR"
-        exit 1
-      fi
     - IMAGE_REPO="$(eval "printf '%s' \"\${$IMAGE_VAR}\"")"
     - if [ -z "$IMAGE_REPO" ]; then IMAGE_REPO="${DOCKER_REGISTRY_URL}/${DOCKER_USERNAME}/${SERVICE_NAME}"; fi
     - MONGO_CONTAINER="${SERVICE_NAME}-mongo"
-    - MONGO_EXPRESS_CONTAINER="${MONGO_CONTAINER}-express"
     - >
       ssh -o StrictHostKeyChecking=no "${SSH_REMOTE_USER}@${TARGET_HOST}"
       "set -eu;
@@ -210,14 +180,15 @@ deploy:node-services:
       sudo docker network create ${DEPLOY_NETWORK} >/dev/null 2>&1 || true;
       sudo docker stop ${SERVICE_NAME} >/dev/null 2>&1 || true;
       sudo docker rm -f ${SERVICE_NAME} >/dev/null 2>&1 || true;
+      sudo docker stop ${MONGO_CONTAINER} >/dev/null 2>&1 || true;
       sudo docker rm -f ${MONGO_CONTAINER} >/dev/null 2>&1 || true;
-      sudo docker run -d --name ${MONGO_CONTAINER} --network ${DEPLOY_NETWORK} --restart unless-stopped -p ${MONGO_HOST_PORT}:27017 -v ${MONGO_CONTAINER}-data:/data/db --entrypoint bash mongo:7 -c 'echo \"hackathonreplicasetkeyfilesecret1234567890\" > /tmp/keyfile && chmod 400 /tmp/keyfile && chown 999:999 /tmp/keyfile && exec docker-entrypoint.sh mongod --replSet rs0 --keyFile /tmp/keyfile --bind_ip_all' >/dev/null;
-      sleep 15;
-      sudo docker exec ${MONGO_CONTAINER} mongosh --eval 'try { var status = rs.status(); console.log(\"Replica set already initialized: \" + status.set); } catch(e) { console.log(\"Initiating replica set...\"); rs.initiate({_id: \"rs0\", members: [{_id: 0, host: \"${MONGO_CONTAINER}:27017\"}]}); }' >/dev/null 2>&1 || true;
-      sudo docker rm -f ${MONGO_EXPRESS_CONTAINER} >/dev/null 2>&1 || true;
-      sudo docker run -d --name ${MONGO_EXPRESS_CONTAINER} --network ${DEPLOY_NETWORK} --restart unless-stopped -p ${MONGO_EXPRESS_PORT}:8081 -e ME_CONFIG_MONGODB_URL='mongodb://${MONGO_CONTAINER}:27017/?directConnection=true' -e ME_CONFIG_BASICAUTH=false mongo-express:latest >/dev/null;
+      sudo docker run -d --name ${MONGO_CONTAINER} --network ${DEPLOY_NETWORK} --restart unless-stopped -p ${MONGO_HOST_PORT}:27017 -v ${MONGO_CONTAINER}-data:/data/db --entrypoint bash mongo:7 -c 'echo \"hackathonreplicasetkeyfilesecret1234567890\" > /tmp/keyfile && chmod 400 /tmp/keyfile && chown 999:999 /tmp/keyfile && exec docker-entrypoint.sh mongod --replSet rs0 --keyFile /tmp/keyfile --bind_ip_all';
+      sleep 20;
+      for i in {1..10}; do sudo docker exec ${MONGO_CONTAINER} mongosh --quiet --eval 'db.adminCommand({ping:1})' && break || sleep 3; done;
+      sudo docker exec ${MONGO_CONTAINER} mongosh --quiet --eval 'rs.status()' || sudo docker exec ${MONGO_CONTAINER} mongosh --eval 'rs.initiate({_id:\"rs0\",members:[{_id:0,host:\"${MONGO_CONTAINER}:27017\"}]})';
+      sleep 10;
       sudo docker pull ${IMAGE_REPO}:${CI_COMMIT_SHORT_SHA};
-      sudo docker run -d --name ${SERVICE_NAME} --network ${DEPLOY_NETWORK} --restart unless-stopped -p ${SERVICE_PORT}:${SERVICE_PORT} -e PORT=${SERVICE_PORT} -e SERVICE_NAME=${SERVICE_NAME} -e FRONTEND_URL='${FRONTEND_URL}' -e DATABASE_URL='mongodb://${MONGO_CONTAINER}:27017/${DATABASE_NAME}?replicaSet=rs0' -e JWT_SECRET='${JWT_SECRET}' -e JWT_REFRESH_SECRET='${JWT_REFRESH_SECRET}' -e EMAIL_HOST='${EMAIL_HOST}' -e EMAIL_PORT='${EMAIL_PORT}' -e EMAIL_USER='${EMAIL_USER}' -e EMAIL_PASS='${EMAIL_PASS}' ${IMAGE_REPO}:${CI_COMMIT_SHORT_SHA};
+      sudo docker run -d --name ${SERVICE_NAME} --network ${DEPLOY_NETWORK} --restart unless-stopped -p ${SERVICE_PORT}:${SERVICE_PORT} -e PORT=${SERVICE_PORT} -e SERVICE_NAME=${SERVICE_NAME} -e FRONTEND_URL='${FRONTEND_URL}' -e DATABASE_URL='mongodb://${MONGO_CONTAINER}:27017/${DATABASE_NAME}?replicaSet=rs0&directConnection=true' -e JWT_SECRET='${JWT_SECRET}' -e JWT_REFRESH_SECRET='${JWT_REFRESH_SECRET}' -e EMAIL_HOST='${EMAIL_HOST}' -e EMAIL_PORT='${EMAIL_PORT}' -e EMAIL_USER='${EMAIL_USER}' -e EMAIL_PASS='${EMAIL_PASS}' ${IMAGE_REPO}:${CI_COMMIT_SHORT_SHA};
       sudo docker image prune -af >/dev/null 2>&1 || true"
 
 deploy:python-services:
@@ -229,7 +200,6 @@ deploy:python-services:
         SERVICE_PORT: "8001"
         DATABASE_NAME: analytics_service
         MONGO_HOST_PORT: "27022"
-        MONGO_EXPRESS_PORT: "8086"
         IMAGE_VAR: ANALYTICS_IMAGE
         SSH_KEY_VAR: SOFTEC_NOT_SSH
         TARGET_HOST_VAR: ANALYTICS_EC2_IP
@@ -237,29 +207,16 @@ deploy:python-services:
         SERVICE_PORT: "8002"
         DATABASE_NAME: anomaly_service
         MONGO_HOST_PORT: "27023"
-        MONGO_EXPRESS_PORT: "8087"
         IMAGE_VAR: ANOMALY_IMAGE
         SSH_KEY_VAR: SOFTEC_NOT_SSH
         TARGET_HOST_VAR: ANOMALY_EC2_IP
   script:
     - SSH_KEY_CONTENT="$(eval "printf '%s' \"\${$SSH_KEY_VAR}\"")"
-    - if [ -z "$SSH_KEY_CONTENT" ]; then SSH_KEY_CONTENT="$SSH_PRIVATE_KEY"; fi
-    - |
-      if [ -z "$SSH_KEY_CONTENT" ]; then
-        echo "Missing required SSH key variable: $SSH_KEY_VAR or SSH_PRIVATE_KEY"
-        exit 1
-      fi
     - printf '%s\n' "$SSH_KEY_CONTENT" > ~/.ssh/id_rsa
     - TARGET_HOST="$(eval "printf '%s' \"\${$TARGET_HOST_VAR}\"")"
-    - |
-      if [ -z "$TARGET_HOST" ]; then
-        echo "Missing required variable: $TARGET_HOST_VAR"
-        exit 1
-      fi
     - IMAGE_REPO="$(eval "printf '%s' \"\${$IMAGE_VAR}\"")"
     - if [ -z "$IMAGE_REPO" ]; then IMAGE_REPO="${DOCKER_REGISTRY_URL}/${DOCKER_USERNAME}/${SERVICE_NAME}"; fi
     - MONGO_CONTAINER="${SERVICE_NAME}-mongo"
-    - MONGO_EXPRESS_CONTAINER="${MONGO_CONTAINER}-express"
     - >
       ssh -o StrictHostKeyChecking=no "${SSH_REMOTE_USER}@${TARGET_HOST}"
       "set -eu;
@@ -267,31 +224,22 @@ deploy:python-services:
       sudo docker network create ${DEPLOY_NETWORK} >/dev/null 2>&1 || true;
       sudo docker stop ${SERVICE_NAME} >/dev/null 2>&1 || true;
       sudo docker rm -f ${SERVICE_NAME} >/dev/null 2>&1 || true;
+      sudo docker stop ${MONGO_CONTAINER} >/dev/null 2>&1 || true;
       sudo docker rm -f ${MONGO_CONTAINER} >/dev/null 2>&1 || true;
-      sudo docker run -d --name ${MONGO_CONTAINER} --network ${DEPLOY_NETWORK} --restart unless-stopped -p ${MONGO_HOST_PORT}:27017 -v ${MONGO_CONTAINER}-data:/data/db --entrypoint bash mongo:7 -c 'echo \"hackathonreplicasetkeyfilesecret1234567890\" > /tmp/keyfile && chmod 400 /tmp/keyfile && chown 999:999 /tmp/keyfile && exec docker-entrypoint.sh mongod --replSet rs0 --keyFile /tmp/keyfile --bind_ip_all' >/dev/null;
-      sleep 15;
-      sudo docker exec ${MONGO_CONTAINER} mongosh --eval 'try { var status = rs.status(); console.log(\"Replica set already initialized: \" + status.set); } catch(e) { console.log(\"Initiating replica set...\"); rs.initiate({_id: \"rs0\", members: [{_id: 0, host: \"${MONGO_CONTAINER}:27017\"}]}); }' >/dev/null 2>&1 || true;
-      sudo docker rm -f ${MONGO_EXPRESS_CONTAINER} >/dev/null 2>&1 || true;
-      sudo docker run -d --name ${MONGO_EXPRESS_CONTAINER} --network ${DEPLOY_NETWORK} --restart unless-stopped -p ${MONGO_EXPRESS_PORT}:8081 -e ME_CONFIG_MONGODB_URL='mongodb://${MONGO_CONTAINER}:27017/?directConnection=true' -e ME_CONFIG_BASICAUTH=false mongo-express:latest >/dev/null;
+      sudo docker run -d --name ${MONGO_CONTAINER} --network ${DEPLOY_NETWORK} --restart unless-stopped -p ${MONGO_HOST_PORT}:27017 -v ${MONGO_CONTAINER}-data:/data/db --entrypoint bash mongo:7 -c 'echo \"hackathonreplicasetkeyfilesecret1234567890\" > /tmp/keyfile && chmod 400 /tmp/keyfile && chown 999:999 /tmp/keyfile && exec docker-entrypoint.sh mongod --replSet rs0 --keyFile /tmp/keyfile --bind_ip_all';
+      sleep 20;
+      for i in {1..10}; do sudo docker exec ${MONGO_CONTAINER} mongosh --quiet --eval 'db.adminCommand({ping:1})' && break || sleep 3; done;
+      sudo docker exec ${MONGO_CONTAINER} mongosh --quiet --eval 'rs.status()' || sudo docker exec ${MONGO_CONTAINER} mongosh --eval 'rs.initiate({_id:\"rs0\",members:[{_id:0,host:\"${MONGO_CONTAINER}:27017\"}]})';
+      sleep 10;
       sudo docker pull ${IMAGE_REPO}:${CI_COMMIT_SHORT_SHA};
-      sudo docker run -d --name ${SERVICE_NAME} --network ${DEPLOY_NETWORK} --restart unless-stopped -p ${SERVICE_PORT}:${SERVICE_PORT} -e PORT=${SERVICE_PORT} -e SERVICE_NAME=${SERVICE_NAME} -e FRONTEND_URL='${FRONTEND_URL}' -e DATABASE_URL='mongodb://${MONGO_CONTAINER}:27017/${DATABASE_NAME}?replicaSet=rs0' ${IMAGE_REPO}:${CI_COMMIT_SHORT_SHA} uvicorn app.main:app --host 0.0.0.0 --port ${SERVICE_PORT};
+      sudo docker run -d --name ${SERVICE_NAME} --network ${DEPLOY_NETWORK} --restart unless-stopped -p ${SERVICE_PORT}:${SERVICE_PORT} -e PORT=${SERVICE_PORT} -e SERVICE_NAME=${SERVICE_NAME} -e FRONTEND_URL='${FRONTEND_URL}' -e DATABASE_URL='mongodb://${MONGO_CONTAINER}:27017/${DATABASE_NAME}?replicaSet=rs0&directConnection=true' ${IMAGE_REPO}:${CI_COMMIT_SHORT_SHA} uvicorn app.main:app --host 0.0.0.0 --port ${SERVICE_PORT};
       sudo docker image prune -af >/dev/null 2>&1 || true"
 
 deploy:frontend:
   <<: *deploy_base
   stage: deploy-frontend
   script:
-    - |
-      if [ -z "$FRONTEND_EC2_IP" ]; then
-        echo "Missing required variable: FRONTEND_EC2_IP"
-        exit 1
-      fi
     - SSH_KEY_CONTENT="${SOFTEC_LF_SSH:-$SSH_PRIVATE_KEY}"
-    - |
-      if [ -z "$SSH_KEY_CONTENT" ]; then
-        echo "Missing required SSH key variable: SOFTEC_LF_SSH or SSH_PRIVATE_KEY"
-        exit 1
-      fi
     - printf '%s\n' "$SSH_KEY_CONTENT" > ~/.ssh/id_rsa
     - IMAGE_REPO="${FRONTEND_IMAGE:-${DOCKER_REGISTRY_URL}/${DOCKER_USERNAME}/s-frontend}"
     - >
