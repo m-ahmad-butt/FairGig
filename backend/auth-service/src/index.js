@@ -9,7 +9,29 @@ const app = express();
 const prisma = new PrismaClient();
 const port = Number(process.env.PORT || 4001);
 
-app.use(cors());
+const configuredOrigins = (process.env.CORS_ORIGINS || '')
+  .split(',')
+  .map((origin) => origin.trim().replace(/\/$/, ''))
+  .filter(Boolean);
+
+const allowAllOrigins = configuredOrigins.length === 0 || configuredOrigins.includes('*');
+const corsOptions = {
+  origin: (origin, callback) => {
+    if (!origin || allowAllOrigins) {
+      callback(null, true);
+      return;
+    }
+
+    const normalizedOrigin = origin.trim().replace(/\/$/, '');
+    callback(null, configuredOrigins.includes(normalizedOrigin));
+  },
+  methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  optionsSuccessStatus: 204
+};
+
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 app.use(express.json());
 
 app.get('/health', async (req, res) => {

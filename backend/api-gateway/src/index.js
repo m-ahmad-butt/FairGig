@@ -8,10 +8,42 @@ const { Server } = require('socket.io');
 const { createProxyMiddleware } = require('http-proxy-middleware');
 
 const app = express();
+
+function parseAllowedOrigins() {
+  const rawOrigins = process.env.CORS_ORIGINS || '';
+  const parsedOrigins = rawOrigins
+    .split(',')
+    .map((origin) => origin.trim().replace(/\/$/, ''))
+    .filter(Boolean);
+
+  if (parsedOrigins.length > 0) {
+    return parsedOrigins;
+  }
+
+  return ['*'];
+}
+
+const allowedOrigins = parseAllowedOrigins();
+const allowAllOrigins = allowedOrigins.includes('*');
+const corsOptions = {
+  origin: (origin, callback) => {
+    if (!origin || allowAllOrigins) {
+      callback(null, true);
+      return;
+    }
+
+    const normalizedOrigin = origin.trim().replace(/\/$/, '');
+    callback(null, allowedOrigins.includes(normalizedOrigin));
+  },
+  methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  optionsSuccessStatus: 204
+};
+
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+    origin: allowAllOrigins ? true : allowedOrigins,
     methods: ['GET', 'POST']
   }
 });
@@ -128,7 +160,8 @@ const targets = {
   anomaly: process.env.ANOMALY_SERVICE_URL
 };
 
-app.use(cors());
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 
 // Socket.io namespace for notifications
 const notificationNamespace = io.of('/socket.io/notifications');
@@ -248,8 +281,6 @@ app.patch('/internal/notifications/:id/read', express.json(), async (req, res) =
     return res.status(500).json({ error: 'Failed to update notification' });
   }
 });
-
-app.use(cors());
 
 app.use('/health', express.json());
 app.use('/', (req, res, next) => {
