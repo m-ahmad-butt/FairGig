@@ -15,9 +15,11 @@
       - SHARED_AGENT_SERVICE_URL=http://shared-agent-service:4005
       - ANALYTICS_SERVICE_URL=http://analytics-service:8001
       - ANOMALY_SERVICE_URL=http://anomaly-service:8002
+      - NOTIFICATION_DATABASE_URL=mongodb://api-gateway-mongo:27017/api_gateway_notifications?replicaSet=rs0
     ports:
       - '8080:8080'
     depends_on:
+      - api-gateway-mongo
       - auth-service
       - earnings-service
       - grievance-service
@@ -25,6 +27,20 @@
       - shared-agent-service
       - analytics-service
       - anomaly-service
+
+  api-gateway-mongo:
+    image: mongo:7
+    container_name: api-gateway-mongo
+    command: ["--replSet", "rs0", "--bind_ip_all"]
+    volumes:
+      - api_gateway_mongo_data:/data/db
+    healthcheck:
+      test: echo "try { rs.status() } catch (err) { rs.initiate({_id:'rs0',members:[{_id:0,host:'api-gateway-mongo:27017'}]}) }" | mongosh --port 27017 --quiet
+      interval: 5s
+      timeout: 30s
+      start_period: 0s
+      start_interval: 1s
+      retries: 30
 
   auth-service:
     build:
@@ -320,6 +336,7 @@
       - anomaly-mongo
 
 volumes:
+  api_gateway_mongo_data:
   auth_mongo_data:
   earnings_mongo_data:
   grievance_mongo_data:

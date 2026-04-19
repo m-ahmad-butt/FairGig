@@ -15,6 +15,7 @@ router.post('/bulk', validateBulkEarnings, earningController.bulkCreate);
 router.get('/', earningController.list);
 router.get('/worker/:worker_id/session/:session_id', validateWorkerAndSessionParams, earningController.getByWorkerAndSession);
 router.get('/:id', validateUuidParam, earningController.getById);
+router.put('/:id', validateUuidParam, validateUpdateEarning, earningController.update);
 router.patch('/:id', validateUuidParam, validateUpdateEarning, earningController.update);
 router.delete('/:id', validateUuidParam, earningController.remove);
 

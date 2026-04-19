@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field, field_validator
 
 OBJECT_ID_REGEX = re.compile(r'^[a-fA-F\d]{24}$')
 UUID_REGEX = re.compile(
-    r'^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+    r'^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
     re.IGNORECASE
 )
 

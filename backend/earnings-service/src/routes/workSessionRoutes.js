@@ -15,6 +15,7 @@ router.post('/bulk', validateBulkWorkSessions, workSessionController.bulkCreate)
 router.get('/', workSessionController.list);
 router.get('/worker/:worker_id', validateWorkerIdParam, workSessionController.getByWorkerId);
 router.get('/:id', validateUuidParam, workSessionController.getById);
+router.put('/:id', validateUuidParam, validateUpdateWorkSession, workSessionController.update);
 router.patch('/:id', validateUuidParam, validateUpdateWorkSession, workSessionController.update);
 router.delete('/:id', validateUuidParam, workSessionController.remove);
 

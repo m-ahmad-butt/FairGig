@@ -51,6 +51,7 @@ model Evidance {
   session_id     String      @unique
   image_url      String
   verified       Boolean     @default(false)
+  status         String      @default("pending")
   reviewer_notes String?
   created_at     DateTime    @default(now())
   updated_at     DateTime    @updatedAt

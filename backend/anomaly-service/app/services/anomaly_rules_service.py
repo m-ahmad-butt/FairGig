@@ -152,7 +152,8 @@ class AnomalyRulesService:
 
         minimal_hours = current_shift.hours_worked <= ghost_minimal_hours_threshold
         triggered = (
-            minimal_hours
+            bool(baseline_values)
+            and minimal_hours
             and current_shift.platform_deductions > 0
             and current_shift.platform_deductions >= proportional_threshold
         )

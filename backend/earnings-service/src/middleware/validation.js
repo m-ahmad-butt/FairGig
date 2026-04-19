@@ -1,5 +1,6 @@
 const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const mongoObjectIdRegex = /^[a-f\d]{24}$/i;
+const EVIDENCE_STATUS_VALUES = ['pending', 'verified', 'flagged', 'unverifiable'];
 
 function isUuid(value) {
   return uuidRegex.test(value);
@@ -348,7 +349,7 @@ function validateUpdateEarning(req, res, next) {
 }
 
 function validateCreateEvidence(req, res, next) {
-  const { worker_id, session_id, image_url, verified } = req.body;
+  const { worker_id, session_id, image_url, verified, reviewer_notes, status } = req.body;
 
   if (!worker_id || !session_id || !image_url) {
     return res.status(400).json({ error: 'worker_id, session_id and image_url are required' });
@@ -372,6 +373,14 @@ function validateCreateEvidence(req, res, next) {
     return res.status(400).json({ error: 'verified must be a boolean value' });
   }
 
+  if (reviewer_notes !== undefined && reviewer_notes !== null && typeof reviewer_notes !== 'string') {
+    return res.status(400).json({ error: 'reviewer_notes must be a string value' });
+  }
+
+  if (status !== undefined && !EVIDENCE_STATUS_VALUES.includes(status)) {
+    return res.status(400).json({ error: 'status must be one of: pending, verified, flagged, unverifiable' });
+  }
+
   next();
 }
 
@@ -386,7 +395,7 @@ function validateBulkEvidence(req, res, next) {
 
   for (let index = 0; index < items.length; index += 1) {
     const item = items[index] || {};
-    const { worker_id, session_id, image_url, verified } = item;
+    const { worker_id, session_id, image_url, verified, reviewer_notes, status } = item;
 
     if (!worker_id || !session_id || !image_url) {
       return res.status(400).json({
@@ -416,13 +425,23 @@ function validateBulkEvidence(req, res, next) {
     if (verified !== undefined && typeof verified !== 'boolean') {
       return res.status(400).json({ error: `items[${index}].verified must be a boolean value` });
     }
+
+    if (reviewer_notes !== undefined && reviewer_notes !== null && typeof reviewer_notes !== 'string') {
+      return res.status(400).json({ error: `items[${index}].reviewer_notes must be a string value` });
+    }
+
+    if (status !== undefined && !EVIDENCE_STATUS_VALUES.includes(status)) {
+      return res.status(400).json({
+        error: `items[${index}].status must be one of: pending, verified, flagged, unverifiable`
+      });
+    }
   }
 
   next();
 }
 
 function validateUpdateEvidence(req, res, next) {
-  const allowed = ['worker_id', 'session_id', 'image_url', 'verified'];
+  const allowed = ['worker_id', 'session_id', 'image_url', 'verified', 'reviewer_notes', 'status'];
   const keys = Object.keys(req.body || {});
 
   if (keys.length === 0) {
@@ -452,18 +471,56 @@ function validateUpdateEvidence(req, res, next) {
     return res.status(400).json({ error: 'verified must be a boolean value' });
   }
 
+  if (req.body.reviewer_notes !== undefined && req.body.reviewer_notes !== null && typeof req.body.reviewer_notes !== 'string') {
+    return res.status(400).json({ error: 'reviewer_notes must be a string value' });
+  }
+
+  if (req.body.status !== undefined && !EVIDENCE_STATUS_VALUES.includes(req.body.status)) {
+    return res.status(400).json({ error: 'status must be one of: pending, verified, flagged, unverifiable' });
+  }
+
   next();
 }
 
 function validateEvidenceVerifiedUpdate(req, res, next) {
   const keys = Object.keys(req.body || {});
+  const allowed = ['verified', 'reviewer_notes', 'status'];
 
-  if (keys.length !== 1 || keys[0] !== 'verified') {
-    return res.status(400).json({ error: 'Only verified field is allowed in this endpoint' });
+  const invalid = keys.filter((key) => !allowed.includes(key));
+  if (invalid.length > 0) {
+    return res.status(400).json({ error: `Invalid fields: ${invalid.join(', ')}` });
+  }
+
+  if (!keys.includes('verified')) {
+    return res.status(400).json({ error: 'verified field is required in this endpoint' });
   }
 
   if (typeof req.body.verified !== 'boolean') {
     return res.status(400).json({ error: 'verified must be a boolean value' });
+  }
+
+  if (req.body.reviewer_notes !== undefined && req.body.reviewer_notes !== null && typeof req.body.reviewer_notes !== 'string') {
+    return res.status(400).json({ error: 'reviewer_notes must be a string value' });
+  }
+
+  if (req.body.status !== undefined && !EVIDENCE_STATUS_VALUES.includes(req.body.status)) {
+    return res.status(400).json({ error: 'status must be one of: pending, verified, flagged, unverifiable' });
+  }
+
+  if (req.body.status === 'verified' && req.body.verified !== true) {
+    return res.status(400).json({ error: 'status=verified requires verified=true' });
+  }
+
+  if (req.body.status === 'pending' && req.body.verified !== false) {
+    return res.status(400).json({ error: 'status=pending requires verified=false' });
+  }
+
+  if (req.body.status === 'flagged' && req.body.verified !== false) {
+    return res.status(400).json({ error: 'status=flagged requires verified=false' });
+  }
+
+  if (req.body.status === 'unverifiable' && req.body.verified !== false) {
+    return res.status(400).json({ error: 'status=unverifiable requires verified=false' });
   }
 
   next();

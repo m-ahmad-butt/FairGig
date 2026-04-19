@@ -7,16 +7,39 @@ const { createEvidenceUploadUrls, uploadEvidenceBuffer } = require('../utils/evi
 
 const AUTH_SERVICE_BASE_URL = process.env.AUTH_SERVICE_URL || 'http://auth-service:4001';
 const API_GATEWAY_URL = process.env.API_GATEWAY_URL || 'http://api-gateway:8080';
+const EVIDENCE_STATUS_VALUES = ['pending', 'verified', 'flagged', 'unverifiable'];
 
 function shouldTriggerAnomalyDetection(previousVerified, nextVerified) {
   return previousVerified !== true && nextVerified === true;
 }
 
-async function emitWorkerNotification(workerId, verificationStatus, reviewerNotes) {
+function resolveEvidenceStatus(verificationStatus, explicitStatus) {
+  if (EVIDENCE_STATUS_VALUES.includes(explicitStatus)) {
+    return explicitStatus;
+  }
+
+  if (verificationStatus === true) {
+    return 'verified';
+  }
+
+  if (verificationStatus === false) {
+    return 'flagged';
+  }
+
+  return 'unverifiable';
+}
+
+async function emitWorkerNotification(workerId, verificationStatus, reviewerNotes, explicitStatus, sessionId) {
   try {
-    const notificationType = verificationStatus === true ? 'evidence_verified' : 
-                            verificationStatus === false ? 'evidence_flagged' : 
-                            'evidence_unverifiable';
+    const resolvedStatus = resolveEvidenceStatus(verificationStatus, explicitStatus);
+
+    const notificationTypeByStatus = {
+      verified: 'evidence_verified',
+      flagged: 'evidence_flagged',
+      unverifiable: 'evidence_unverifiable'
+    };
+
+    const notificationType = notificationTypeByStatus[resolvedStatus] || 'evidence_flagged';
     
     const titles = {
       'evidence_verified': '✅ Your earnings were verified',
@@ -39,7 +62,8 @@ async function emitWorkerNotification(workerId, verificationStatus, reviewerNote
         title: titles[notificationType],
         message: messages[notificationType],
         data: {
-          status: verificationStatus,
+          status: resolvedStatus,
+          session_id: sessionId || null,
           reviewer_notes: reviewerNotes || null
         }
       })
@@ -167,7 +191,7 @@ class EvidenceController {
 
   async create(req, res) {
     try {
-      const { worker_id, session_id, image_url, verified } = req.body;
+      const { worker_id, session_id, image_url, verified, status, reviewer_notes } = req.body;
 
       const session = await workSessionRepository.findById(session_id);
       if (!session) {
@@ -183,11 +207,17 @@ class EvidenceController {
         return sendBadRequest(res, 'Only one image evidence is allowed per session');
       }
 
+      const resolvedStatus = EVIDENCE_STATUS_VALUES.includes(status)
+        ? status
+        : (verified === true ? 'verified' : 'pending');
+
       const created = await evidenceRepository.create({
         worker_id,
         session_id,
         image_url: image_url.trim(),
-        ...(verified !== undefined ? { verified } : {})
+        ...(verified !== undefined ? { verified } : {}),
+        ...(reviewer_notes !== undefined ? { reviewer_notes: reviewer_notes || null } : {}),
+        status: resolvedStatus
       });
 
       return res.status(201).json(created);
@@ -246,7 +276,11 @@ class EvidenceController {
         worker_id: item.worker_id,
         session_id: item.session_id,
         image_url: item.image_url.trim(),
-        ...(item.verified !== undefined ? { verified: item.verified } : {})
+        ...(item.verified !== undefined ? { verified: item.verified } : {}),
+        ...(item.reviewer_notes !== undefined ? { reviewer_notes: item.reviewer_notes || null } : {}),
+        status: EVIDENCE_STATUS_VALUES.includes(item.status)
+          ? item.status
+          : (item.verified === true ? 'verified' : 'pending')
       }));
 
       const created = await evidenceRepository.createMany(createData);
@@ -271,7 +305,7 @@ class EvidenceController {
 
   async list(req, res) {
     try {
-      const { worker_id, session_id, verified } = req.query;
+      const { worker_id, session_id, verified, status } = req.query;
       const where = {};
 
       if (worker_id) where.worker_id = worker_id;
@@ -281,6 +315,13 @@ class EvidenceController {
           return sendBadRequest(res, 'verified query param must be true or false');
         }
         where.verified = verified === 'true';
+      }
+
+      if (status !== undefined) {
+        if (!EVIDENCE_STATUS_VALUES.includes(status)) {
+          return sendBadRequest(res, 'status query param must be one of: pending, verified, flagged, unverifiable');
+        }
+        where.status = status;
       }
 
       const evidences = await evidenceRepository.findMany(where);
@@ -342,7 +383,8 @@ class EvidenceController {
   async listUnverifiedDetailed(req, res) {
     try {
       const evidences = await evidenceRepository.findUnverifiedWithRelations();
-      const uniqueWorkerIds = [...new Set(evidences.map((item) => item.worker_id).filter(Boolean))];
+      const pendingOnly = evidences.filter((item) => !item.status || item.status === 'pending');
+      const uniqueWorkerIds = [...new Set(pendingOnly.map((item) => item.worker_id).filter(Boolean))];
 
       const workerEntries = await Promise.all(
         uniqueWorkerIds.map(async (workerId) => {
@@ -353,7 +395,7 @@ class EvidenceController {
 
       const workerMap = Object.fromEntries(workerEntries);
 
-      const items = evidences.map((item) => {
+      const items = pendingOnly.map((item) => {
         const session = item.session || null;
         const earning = session?.earning ? serializeEarning(session.earning) : null;
         return {
@@ -363,7 +405,10 @@ class EvidenceController {
             session_id: item.session_id,
             image_url: item.image_url,
             verified: item.verified,
-            created_at: item.created_at
+            status: item.status || 'pending',
+            reviewer_notes: item.reviewer_notes || null,
+            created_at: item.created_at,
+            updated_at: item.updated_at
           },
           session,
           earning,
@@ -413,6 +458,12 @@ class EvidenceController {
       if (req.body.image_url !== undefined) updateData.image_url = req.body.image_url.trim();
       if (req.body.verified !== undefined) updateData.verified = req.body.verified;
       if (req.body.reviewer_notes !== undefined) updateData.reviewer_notes = req.body.reviewer_notes || null;
+      if (req.body.status !== undefined) {
+        if (!EVIDENCE_STATUS_VALUES.includes(req.body.status)) {
+          return sendBadRequest(res, 'Invalid status value');
+        }
+        updateData.status = req.body.status;
+      }
 
       const updated = await evidenceRepository.update(req.params.id, updateData);
 
@@ -454,18 +505,33 @@ class EvidenceController {
       }
 
       const updateData = { verified: req.body.verified };
+
+      if (req.body.status !== undefined) {
+        const allowed = ['pending', 'verified', 'flagged', 'unverifiable'];
+        if (!allowed.includes(req.body.status)) {
+          return sendBadRequest(res, 'Invalid status value');
+        }
+        updateData.status = req.body.status;
+      } else {
+        updateData.status = req.body.verified === true ? 'verified' : 'flagged';
+      }
+
       if (req.body.reviewer_notes !== undefined) {
         updateData.reviewer_notes = req.body.reviewer_notes || null;
       }
 
       const updated = await evidenceRepository.update(req.params.id, updateData);
 
-      // Emit notification to worker
-      emitWorkerNotification(
-        updated.worker_id,
-        updated.verified,
-        updated.reviewer_notes
-      );
+      // Emit notification to worker only for terminal review outcomes.
+      if (updated.status !== 'pending') {
+        emitWorkerNotification(
+          updated.worker_id,
+          updated.verified,
+          updated.reviewer_notes,
+          updated.status,
+          updated.session_id
+        );
+      }
 
       if (shouldTriggerAnomalyDetection(existing.verified, updated.verified)) {
         triggerAnomalyDetection({

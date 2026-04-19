@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   AlertTriangle,
@@ -21,8 +21,7 @@ import {
   YAxis,
 } from "recharts";
 import authService from "../../services/api/authService";
-import earningsService from "../../services/api/earningsService";
-import communityService from "../../services/api/communityService";
+import analyticsService from "../../services/api/analyticsService";
 import Navbar from "../../components/Navigation/Navbar";
 
 const RANGE_OPTIONS = [
@@ -34,25 +33,29 @@ const RANGE_OPTIONS = [
 
 const PLATFORM_COLORS = ["#0f172a", "#2563eb", "#14b8a6", "#f59e0b"];
 
+const DEFAULT_SUMMARY = {
+  activeWorkers: 0,
+  payoutVolume: 0,
+  avgCommission: 0,
+  payoutDelta: 0,
+  commissionDelta: 0,
+};
+
+const DEFAULT_COMMISSION_TREND = {
+  platforms: [],
+  data: [],
+};
+
+const DEFAULT_DATA_COVERAGE = {
+  sessionsInRange: 0,
+  platformsTracked: 0,
+  activeZones: 0,
+  latestSessionDate: null,
+};
+
 function toNumber(value) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : 0;
-}
-
-function parseDate(value) {
-  if (!value) {
-    return new Date(0);
-  }
-
-  const raw = String(value);
-  const fallback = /^\d{4}-\d{2}-\d{2}$/.test(raw) ? `${raw}T00:00:00` : raw;
-  const parsed = new Date(fallback);
-
-  if (Number.isNaN(parsed.getTime())) {
-    return new Date(0);
-  }
-
-  return parsed;
 }
 
 function formatCurrency(value) {
@@ -65,61 +68,6 @@ function formatPlatformLabel(value) {
     .replace(/\b\w/g, (character) => character.toUpperCase());
 }
 
-function toChangePercent(current, previous) {
-  if (!Number.isFinite(previous) || previous === 0) {
-    return current > 0 ? 100 : 0;
-  }
-
-  return ((current - previous) / previous) * 100;
-}
-
-function toWorkerAlias(workerId) {
-  const safeId = String(workerId || "unknown");
-  return `Worker-${safeId.slice(-4).toUpperCase()}`;
-}
-
-function normalizeWorkersPayload(result) {
-  if (Array.isArray(result?.workers)) {
-    return result.workers;
-  }
-
-  if (result?.worker) {
-    return [result.worker];
-  }
-
-  return [];
-}
-
-function mergeSessionsWithEarnings(sessions, earnings) {
-  const earningsBySessionId = new Map(
-    (earnings || []).map((item) => [item.session_id, item]),
-  );
-
-  return (sessions || [])
-    .map((session) => {
-      const earning = earningsBySessionId.get(session.id);
-      if (!earning) {
-        return null;
-      }
-
-      const gross = toNumber(earning.gross_earned);
-      const deductions = toNumber(earning.platform_deductions);
-
-      return {
-        id: session.id,
-        workerId: session.worker_id,
-        platform: session.platform,
-        sessionDate: parseDate(session.session_date),
-        gross,
-        deductions,
-        net: toNumber(earning.net_received),
-        deductionRate: gross > 0 ? (deductions / gross) * 100 : 0,
-      };
-    })
-    .filter(Boolean)
-    .sort((left, right) => right.sessionDate - left.sessionDate);
-}
-
 export default function AdvocateDashboard() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -128,18 +76,19 @@ export default function AdvocateDashboard() {
   const [warning, setWarning] = useState("");
   const [user, setUser] = useState(null);
 
-  const [workers, setWorkers] = useState([]);
-  const [records, setRecords] = useState([]);
+  const [workersCount, setWorkersCount] = useState(0);
+  const [summary, setSummary] = useState(DEFAULT_SUMMARY);
+  const [vulnerabilityList, setVulnerabilityList] = useState([]);
+  const [zoneDistribution, setZoneDistribution] = useState([]);
+  const [commissionTrend, setCommissionTrend] = useState(
+    DEFAULT_COMMISSION_TREND,
+  );
   const [clusters, setClusters] = useState([]);
+  const [dataCoverage, setDataCoverage] = useState(DEFAULT_DATA_COVERAGE);
 
   const dateRange = searchParams.get("range") || "90";
 
-  useEffect(() => {
-    loadData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     setLoading(true);
     setWarning("");
 
@@ -169,40 +118,65 @@ export default function AdvocateDashboard() {
 
       setUser(profile);
 
-      const [workersResult, sessionsResult, earningsResult, clustersResult] =
-        await Promise.allSettled([
-          authService.getOnPlatformWorkers(),
-          earningsService.getWorkSessions(),
-          earningsService.getAllEarnings(),
-          communityService.listPostClusters({ max_clusters: 6 }),
-        ]);
+      const dashboardResult = await analyticsService.getAdvocateDashboard({
+        range: dateRange,
+        max_clusters: 6,
+      });
 
-      const workerList =
-        workersResult.status === "fulfilled"
-          ? normalizeWorkersPayload(workersResult.value)
-          : [];
-      const sessionsList =
-        sessionsResult.status === "fulfilled" ? sessionsResult.value : [];
-      const earningsList =
-        earningsResult.status === "fulfilled" ? earningsResult.value : [];
-      const clustersList =
-        clustersResult.status === "fulfilled"
-          ? clustersResult.value.clusters || []
-          : [];
+      setWorkersCount(Math.round(toNumber(dashboardResult?.workersCount)));
 
-      setWorkers(workerList);
-      setRecords(mergeSessionsWithEarnings(sessionsList, earningsList));
-      setClusters(clustersList);
+      setSummary({
+        activeWorkers: Math.round(
+          toNumber(dashboardResult?.summary?.activeWorkers),
+        ),
+        payoutVolume: toNumber(dashboardResult?.summary?.payoutVolume),
+        avgCommission: toNumber(dashboardResult?.summary?.avgCommission),
+        payoutDelta: toNumber(dashboardResult?.summary?.payoutDelta),
+        commissionDelta: toNumber(dashboardResult?.summary?.commissionDelta),
+      });
 
-      if (
-        workersResult.status !== "fulfilled" ||
-        sessionsResult.status !== "fulfilled" ||
-        earningsResult.status !== "fulfilled"
-      ) {
-        setWarning(
-          "Some data channels are unavailable. Dashboard shows best-effort analytics from reachable services.",
-        );
-      }
+      setVulnerabilityList(
+        Array.isArray(dashboardResult?.vulnerabilityList)
+          ? dashboardResult.vulnerabilityList
+          : [],
+      );
+
+      setZoneDistribution(
+        Array.isArray(dashboardResult?.zoneDistribution)
+          ? dashboardResult.zoneDistribution
+          : [],
+      );
+
+      setCommissionTrend({
+        platforms: Array.isArray(dashboardResult?.commissionTrend?.platforms)
+          ? dashboardResult.commissionTrend.platforms
+          : [],
+        data: Array.isArray(dashboardResult?.commissionTrend?.data)
+          ? dashboardResult.commissionTrend.data
+          : [],
+      });
+
+      setClusters(
+        Array.isArray(dashboardResult?.clusters)
+          ? dashboardResult.clusters
+          : [],
+      );
+
+      setDataCoverage({
+        sessionsInRange: Math.round(
+          toNumber(dashboardResult?.dataCoverage?.sessionsInRange),
+        ),
+        platformsTracked: Math.round(
+          toNumber(dashboardResult?.dataCoverage?.platformsTracked),
+        ),
+        activeZones: Math.round(
+          toNumber(dashboardResult?.dataCoverage?.activeZones),
+        ),
+        latestSessionDate:
+          dashboardResult?.dataCoverage?.latestSessionDate || null,
+      });
+
+      setWarning(dashboardResult?.warning || "");
     } catch (error) {
       console.error("Failed to load advocate dashboard:", error);
       setWarning(
@@ -211,261 +185,11 @@ export default function AdvocateDashboard() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [dateRange, navigate]);
 
-  const workerMap = useMemo(
-    () => new Map(workers.map((item) => [item.id, item])),
-    [workers],
-  );
-
-  const filteredRecords = useMemo(() => {
-    const days = Number(dateRange);
-    const cutoff = new Date();
-    cutoff.setHours(0, 0, 0, 0);
-    cutoff.setDate(cutoff.getDate() - days);
-
-    return records.filter((record) => record.sessionDate >= cutoff);
-  }, [dateRange, records]);
-
-  const previousPeriodRecords = useMemo(() => {
-    const days = Number(dateRange);
-    const currentStart = new Date();
-    currentStart.setHours(0, 0, 0, 0);
-    currentStart.setDate(currentStart.getDate() - days);
-
-    const previousStart = new Date(currentStart);
-    previousStart.setDate(previousStart.getDate() - days);
-
-    return records.filter(
-      (record) =>
-        record.sessionDate >= previousStart &&
-        record.sessionDate < currentStart,
-    );
-  }, [dateRange, records]);
-
-  const summary = useMemo(() => {
-    const currentGross = filteredRecords.reduce(
-      (sum, record) => sum + record.gross,
-      0,
-    );
-    const currentDeductions = filteredRecords.reduce(
-      (sum, record) => sum + record.deductions,
-      0,
-    );
-    const currentNet = filteredRecords.reduce(
-      (sum, record) => sum + record.net,
-      0,
-    );
-
-    const previousGross = previousPeriodRecords.reduce(
-      (sum, record) => sum + record.gross,
-      0,
-    );
-    const previousDeductions = previousPeriodRecords.reduce(
-      (sum, record) => sum + record.deductions,
-      0,
-    );
-    const previousNet = previousPeriodRecords.reduce(
-      (sum, record) => sum + record.net,
-      0,
-    );
-
-    const activeWorkers = new Set(
-      filteredRecords.map((record) => record.workerId),
-    ).size;
-
-    const currentCommission =
-      currentGross > 0 ? (currentDeductions / currentGross) * 100 : 0;
-    const previousCommission =
-      previousGross > 0 ? (previousDeductions / previousGross) * 100 : 0;
-
-    return {
-      activeWorkers,
-      payoutVolume: currentNet,
-      avgCommission: currentCommission,
-      payoutDelta: toChangePercent(currentNet, previousNet),
-      commissionDelta: toChangePercent(currentCommission, previousCommission),
-    };
-  }, [filteredRecords, previousPeriodRecords]);
-
-  const vulnerabilityList = useMemo(() => {
-    const now = new Date();
-    const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-    const previousMonthStart = new Date(
-      now.getFullYear(),
-      now.getMonth() - 1,
-      1,
-    );
-
-    const grouped = new Map();
-
-    for (const record of records) {
-      if (record.sessionDate < previousMonthStart) {
-        continue;
-      }
-
-      if (!grouped.has(record.workerId)) {
-        grouped.set(record.workerId, {
-          previousMonth: 0,
-          currentMonth: 0,
-        });
-      }
-
-      const entry = grouped.get(record.workerId);
-
-      if (record.sessionDate >= currentMonthStart) {
-        entry.currentMonth += record.net;
-      } else if (record.sessionDate >= previousMonthStart) {
-        entry.previousMonth += record.net;
-      }
-    }
-
-    return Array.from(grouped.entries())
-      .map(([workerId, value]) => {
-        const previousMonth = value.previousMonth;
-        const currentMonth = value.currentMonth;
-        const dropPercent =
-          previousMonth > 0
-            ? ((previousMonth - currentMonth) / previousMonth) * 100
-            : 0;
-        const worker = workerMap.get(workerId);
-
-        return {
-          workerId,
-          alias: toWorkerAlias(workerId),
-          city: worker?.city || "Unknown",
-          zone: worker?.zone || "Unknown",
-          previousMonth,
-          currentMonth,
-          dropPercent,
-        };
-      })
-      .filter((item) => item.dropPercent > 20)
-      .sort((left, right) => right.dropPercent - left.dropPercent);
-  }, [records, workerMap]);
-
-  const zoneDistribution = useMemo(() => {
-    const grouped = {};
-
-    for (const record of filteredRecords) {
-      const worker = workerMap.get(record.workerId);
-      const zone = worker?.zone || "Unknown Zone";
-
-      if (!grouped[zone]) {
-        grouped[zone] = {
-          zone,
-          net: 0,
-          workers: new Set(),
-        };
-      }
-
-      grouped[zone].net += record.net;
-      grouped[zone].workers.add(record.workerId);
-    }
-
-    return Object.values(grouped)
-      .map((entry) => ({
-        zone: entry.zone,
-        net: entry.net,
-        workers: entry.workers.size,
-      }))
-      .sort((left, right) => right.net - left.net)
-      .slice(0, 8);
-  }, [filteredRecords, workerMap]);
-
-  const commissionTrend = useMemo(() => {
-    const grossByPlatform = {};
-
-    for (const record of filteredRecords) {
-      const platform = formatPlatformLabel(record.platform);
-      if (!grossByPlatform[platform]) {
-        grossByPlatform[platform] = 0;
-      }
-
-      grossByPlatform[platform] += record.gross;
-    }
-
-    const topPlatforms = Object.entries(grossByPlatform)
-      .sort((left, right) => right[1] - left[1])
-      .slice(0, 4)
-      .map(([platform]) => platform);
-
-    const monthBuckets = [];
-    const monthMap = new Map();
-    const now = new Date();
-
-    for (let offset = 5; offset >= 0; offset -= 1) {
-      const monthStart = new Date(
-        now.getFullYear(),
-        now.getMonth() - offset,
-        1,
-      );
-      const key = monthStart.toISOString().slice(0, 7);
-
-      const row = {
-        key,
-        label: monthStart.toLocaleDateString("en-PK", {
-          month: "short",
-          year: "2-digit",
-        }),
-      };
-
-      for (const platform of topPlatforms) {
-        row[platform] = 0;
-      }
-
-      monthBuckets.push(row);
-      monthMap.set(key, row);
-    }
-
-    for (const record of filteredRecords) {
-      const platform = formatPlatformLabel(record.platform);
-      if (!topPlatforms.includes(platform)) {
-        continue;
-      }
-
-      const key = new Date(
-        record.sessionDate.getFullYear(),
-        record.sessionDate.getMonth(),
-        1,
-      )
-        .toISOString()
-        .slice(0, 7);
-      const row = monthMap.get(key);
-
-      if (!row) {
-        continue;
-      }
-
-      const currentWeighted = row[`${platform}_weighted`] || 0;
-      const currentGross = row[`${platform}_gross`] || 0;
-
-      row[`${platform}_weighted`] =
-        currentWeighted + record.deductionRate * record.gross;
-      row[`${platform}_gross`] = currentGross + record.gross;
-      row[platform] =
-        row[`${platform}_gross`] > 0
-          ? row[`${platform}_weighted`] / row[`${platform}_gross`]
-          : 0;
-    }
-
-    const trendRows = monthBuckets.map((row) => {
-      const cleanRow = {
-        label: row.label,
-      };
-
-      for (const platform of topPlatforms) {
-        cleanRow[platform] = toNumber(row[platform]);
-      }
-
-      return cleanRow;
-    });
-
-    return {
-      platforms: topPlatforms,
-      data: trendRows,
-    };
-  }, [filteredRecords]);
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   if (loading) {
     return (
@@ -536,7 +260,7 @@ export default function AdvocateDashboard() {
               {summary.activeWorkers}
             </p>
             <p className="mt-1 text-xs text-zinc-500">
-              of {workers.length} onboarded workers in selected window
+              of {workersCount} onboarded workers in selected window
             </p>
           </div>
 
@@ -668,7 +392,7 @@ export default function AdvocateDashboard() {
                   Sessions in Range
                 </p>
                 <p className="mt-1 text-2xl font-bold text-zinc-900">
-                  {filteredRecords.length}
+                  {dataCoverage.sessionsInRange}
                 </p>
               </div>
               <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3">
@@ -676,7 +400,7 @@ export default function AdvocateDashboard() {
                   Platforms Tracked
                 </p>
                 <p className="mt-1 text-2xl font-bold text-zinc-900">
-                  {commissionTrend.platforms.length}
+                  {dataCoverage.platformsTracked}
                 </p>
               </div>
               <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3">
@@ -684,7 +408,7 @@ export default function AdvocateDashboard() {
                   Active Zones
                 </p>
                 <p className="mt-1 text-2xl font-bold text-zinc-900">
-                  {zoneDistribution.length}
+                  {dataCoverage.activeZones}
                 </p>
               </div>
               <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3">
@@ -692,8 +416,10 @@ export default function AdvocateDashboard() {
                   Latest Session Seen
                 </p>
                 <p className="mt-1 font-semibold text-zinc-900">
-                  {filteredRecords[0]
-                    ? filteredRecords[0].sessionDate.toLocaleDateString("en-PK")
+                  {dataCoverage.latestSessionDate
+                    ? new Date(
+                        `${dataCoverage.latestSessionDate}T00:00:00`,
+                      ).toLocaleDateString("en-PK")
                     : "No data"}
                 </p>
               </div>
@@ -828,50 +554,57 @@ export default function AdvocateDashboard() {
 
           {clusters.length > 0 ? (
             <div className="mt-4 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {clusters.map((cluster) => (
-                <div
-                  key={cluster.cluster_id}
-                  className="rounded-lg border border-zinc-200 bg-zinc-50 p-4"
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="inline-flex items-center rounded-full bg-indigo-50 px-2 py-1 text-xs font-medium text-indigo-700 ring-1 ring-inset ring-indigo-700/10">
-                      {formatPlatformLabel(cluster.platform)}
-                    </span>
-                    <span className="text-xs font-medium text-zinc-500">
-                      {cluster.post_count} posts
-                    </span>
-                  </div>
-                  <h3
-                    className="text-sm font-semibold text-zinc-900 line-clamp-2"
-                    title={cluster.representative_title}
+              {clusters.map((cluster) => {
+                const keywords = Array.isArray(cluster.keyword_signature)
+                  ? cluster.keyword_signature
+                  : [];
+                const voteSummary = cluster.vote_summary || {};
+
+                return (
+                  <div
+                    key={cluster.cluster_id}
+                    className="rounded-lg border border-zinc-200 bg-zinc-50 p-4"
                   >
-                    "{cluster.representative_title}"
-                  </h3>
-                  <div className="mt-2 flex flex-wrap gap-1">
-                    {cluster.keyword_signature.map((keyword, idx) => (
-                      <span
-                        key={idx}
-                        className="inline-flex items-center rounded-md bg-white px-1.5 py-0.5 text-[10px] font-medium text-zinc-600 border border-zinc-200"
-                      >
-                        {keyword}
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="inline-flex items-center rounded-full bg-indigo-50 px-2 py-1 text-xs font-medium text-indigo-700 ring-1 ring-inset ring-indigo-700/10">
+                        {formatPlatformLabel(cluster.platform)}
                       </span>
-                    ))}
+                      <span className="text-xs font-medium text-zinc-500">
+                        {cluster.post_count} posts
+                      </span>
+                    </div>
+                    <h3
+                      className="text-sm font-semibold text-zinc-900 line-clamp-2"
+                      title={cluster.representative_title}
+                    >
+                      "{cluster.representative_title}"
+                    </h3>
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {keywords.map((keyword, idx) => (
+                        <span
+                          key={idx}
+                          className="inline-flex items-center rounded-md bg-white px-1.5 py-0.5 text-[10px] font-medium text-zinc-600 border border-zinc-200"
+                        >
+                          {keyword}
+                        </span>
+                      ))}
+                    </div>
+                    <div className="mt-3 flex items-center gap-3 text-xs text-zinc-500 border-t border-zinc-200 pt-3">
+                      <span className="flex items-center gap-1">
+                        <ArrowUpRight className="h-3 w-3 text-emerald-500" />{" "}
+                        {toNumber(voteSummary.upvotes)}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <ArrowDownRight className="h-3 w-3 text-red-500" />{" "}
+                        {toNumber(voteSummary.downvotes)}
+                      </span>
+                      <span className="ml-auto font-medium text-zinc-700">
+                        Score: {toNumber(voteSummary.score)}
+                      </span>
+                    </div>
                   </div>
-                  <div className="mt-3 flex items-center gap-3 text-xs text-zinc-500 border-t border-zinc-200 pt-3">
-                    <span className="flex items-center gap-1">
-                      <ArrowUpRight className="h-3 w-3 text-emerald-500" />{" "}
-                      {cluster.vote_summary.upvotes}
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <ArrowDownRight className="h-3 w-3 text-red-500" />{" "}
-                      {cluster.vote_summary.downvotes}
-                    </span>
-                    <span className="ml-auto font-medium text-zinc-700">
-                      Score: {cluster.vote_summary.score}
-                    </span>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           ) : (
             <p className="mt-4 rounded-lg border border-zinc-200 bg-zinc-50 p-3 text-sm text-zinc-500">

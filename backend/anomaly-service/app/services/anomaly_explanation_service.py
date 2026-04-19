@@ -53,8 +53,8 @@ class AnomalyExplanationService:
             try:
                 response = self._chain.invoke({'context_json': json.dumps(context, ensure_ascii=True)})
                 return response.explanation
-            except Exception:
-                pass
+            except Exception as exc:
+                print(f'[AnomalyExplanationService] LLM call failed, using fallback: {exc}')
 
         return self._fallback_explanation(worker_name, triggered_calculations, primary_trigger)
 

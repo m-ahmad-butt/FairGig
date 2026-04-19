@@ -8,6 +8,7 @@ import VerifyOtpPage from "./pages/Auth/VerifyOtpPage";
 import PendingApprovalPage from "./pages/Auth/PendingApprovalPage";
 import OnboardingPage from "./pages/Auth/OnboardingPage";
 import WorkerDashboard from "./pages/Dashboard/WorkerDashboard";
+import WorkerResolvePage from "./pages/Dashboard/WorkerResolvePage";
 import VerifierDashboard from "./pages/Dashboard/VerifierDashboard";
 import VerificationDetail from "./pages/Dashboard/VerificationDetail";
 import AdvocateDashboard from "./pages/Dashboard/AdvocateDashboard";
@@ -37,6 +38,10 @@ function App() {
         <Route path="/verifier/profile" element={<ProfilePage />} />
         <Route path="/advocate/profile" element={<ProfilePage />} />
         <Route path="/worker/dashboard" element={<WorkerDashboard />} />
+        <Route
+          path="/worker/resolve/:session_id"
+          element={<WorkerResolvePage />}
+        />
         <Route path="/worker/log-earnings" element={<EarningsLogPage />} />
         <Route path="/worker/analytics" element={<IncomeAnalyticsPage />} />
         <Route path="/worker/certificate" element={<IncomeCertificatePage />} />

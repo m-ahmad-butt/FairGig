@@ -206,7 +206,18 @@ class EarningsService {
 
   // Update evidence verification status
   async updateEvidence(evidenceId, data) {
-    const response = await fetch(`${API_URL}/evidence/${evidenceId}/verified`, {
+    const verifiedEndpointFields = new Set(['verified', 'reviewer_notes', 'status']);
+    const payloadKeys = Object.keys(data || {});
+    const useVerifiedEndpoint =
+      payloadKeys.length > 0 &&
+      payloadKeys.every((key) => verifiedEndpointFields.has(key)) &&
+      data?.status !== 'pending';
+
+    const endpoint = useVerifiedEndpoint
+      ? `${API_URL}/evidence/${evidenceId}/verified`
+      : `${API_URL}/evidence/${evidenceId}`;
+
+    const response = await fetch(endpoint, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
@@ -231,6 +242,52 @@ class EarningsService {
     const result = await response.json();
     if (!response.ok) {
       throw new Error(result.error || 'Failed to get evidence');
+    }
+    return result;
+  }
+
+  async getEvidenceBySession(sessionId) {
+    const response = await fetch(`${API_URL}/evidence?session_id=${encodeURIComponent(sessionId)}`, {
+      headers: getAuthHeaders()
+    });
+
+    const result = await response.json();
+    if (!response.ok) {
+      throw new Error(result.error || 'Failed to get evidence by session');
+    }
+    return result;
+  }
+
+  async updateWorkSession(sessionId, data) {
+    const response = await fetch(`${API_URL}/work-sessions/${sessionId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeaders()
+      },
+      body: JSON.stringify(data)
+    });
+
+    const result = await response.json();
+    if (!response.ok) {
+      throw new Error(result.error || 'Failed to update work session');
+    }
+    return result;
+  }
+
+  async updateEarning(earningId, data) {
+    const response = await fetch(`${API_URL}/earnings/${earningId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeaders()
+      },
+      body: JSON.stringify(data)
+    });
+
+    const result = await response.json();
+    if (!response.ok) {
+      throw new Error(result.error || 'Failed to update earning');
     }
     return result;
   }
@@ -305,6 +362,40 @@ class EarningsService {
     if (!response.ok) {
       throw new Error(result.detail || result.error || 'Failed to get worker anomalies');
     }
+    return result;
+  }
+
+  async getWorkerNotifications(workerId) {
+    const response = await fetch(
+      `${GATEWAY_API_BASE}/internal/notifications?user_id=${encodeURIComponent(workerId)}`,
+      {
+        headers: getAuthHeaders()
+      }
+    );
+
+    const result = await response.json();
+    if (!response.ok) {
+      throw new Error(result.error || 'Failed to get worker notifications');
+    }
+
+    return Array.isArray(result) ? result : [];
+  }
+
+  async markNotificationAsRead(notificationId, workerId) {
+    const response = await fetch(`${GATEWAY_API_BASE}/internal/notifications/${notificationId}/read`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeaders()
+      },
+      body: JSON.stringify({ user_id: workerId })
+    });
+
+    const result = await response.json();
+    if (!response.ok) {
+      throw new Error(result.error || 'Failed to mark notification as read');
+    }
+
     return result;
   }
 }
