@@ -69,6 +69,7 @@ export default function VerificationDetailPage() {
   const [aiAnalysis, setAiAnalysis] = useState(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState(false);
+  const [aiErrorMessage, setAiErrorMessage] = useState('');
 
   useEffect(() => {
     loadData();
@@ -116,7 +117,14 @@ export default function VerificationDetailPage() {
   const loadAiAnalysis = async ({ evidenceData, sessionData, earningData }) => {
     setAiLoading(true);
     setAiError(false);
+    setAiErrorMessage('');
     try {
+      if (!isImageEvidenceUrl(evidenceData?.image_url)) {
+        setAiError(true);
+        setAiErrorMessage('AI screenshot analysis currently supports image evidence only (JPG, PNG, WebP).');
+        return;
+      }
+
       const workerId = evidenceData?.worker_id;
       const sessionId = evidenceData?.session_id || sessionData?.id;
 
@@ -221,6 +229,7 @@ export default function VerificationDetailPage() {
     } catch (error) {
       console.error("AI analysis failed:", error);
       setAiError(true);
+      setAiErrorMessage('AI analysis is currently unavailable for this evidence.');
     } finally {
       setAiLoading(false);
     }

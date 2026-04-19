@@ -27,6 +27,10 @@ class UserRepository {
     return prisma.user.update({ where: { email }, data });
   }
 
+  async deleteById(id) {
+    return prisma.user.delete({ where: { id } });
+  }
+
   async findPendingUsers() {
     return prisma.user.findMany({
       where: {

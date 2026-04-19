@@ -112,6 +112,8 @@ class AuthController {
   }
 
   async signup(req, res) {
+    let createdUser = null;
+
     try {
       const { name, email, password, role, category, platform, vehicleType, freelancerType } = req.body;
 
@@ -124,7 +126,7 @@ class AuthController {
       const otp = otpService.generateOTP();
       const otpExpiry = otpService.getOTPExpiry();
 
-      const user = await userRepository.create({
+      createdUser = await userRepository.create({
         name,
         email,
         password: hashedPassword,
@@ -143,12 +145,24 @@ class AuthController {
         otpExpiry
       });
 
-      await emailService.sendOTPEmail(email, name, otp);
+      try {
+        await emailService.sendOTPEmail(email, name, otp);
+      } catch (emailError) {
+        if (createdUser?.id) {
+          await userRepository.deleteById(createdUser.id).catch((cleanupError) => {
+            console.error('Signup cleanup error:', cleanupError.message);
+          });
+        }
+
+        return res.status(503).json({
+          error: 'Unable to send OTP email right now. Please try registering again in a few minutes.'
+        });
+      }
 
       res.status(201).json({
         message: 'User registered successfully. Please verify your email with the OTP sent.',
-        userId: user.id,
-        role: user.role
+        userId: createdUser.id,
+        role: createdUser.role
       });
     } catch (error) {
       console.error('Signup error:', error);
@@ -192,14 +206,22 @@ class AuthController {
       await userRepository.updateByEmail(email, updateData);
 
       if (user.role === ROLES.WORKER) {
-        await emailService.sendAccountActivatedEmail(email, user.name);
+        try {
+          await emailService.sendAccountActivatedEmail(email, user.name);
+        } catch (emailError) {
+          console.error('Account activated email error:', emailError.message);
+        }
 
         return res.json({
           message: 'Email verified successfully. Your account is now active.',
           status: USER_STATUS.ACTIVE
         });
       } else {
-        await emailService.sendAdminApprovalNotification(ADMIN_EMAIL, user);
+        try {
+          await emailService.sendAdminApprovalNotification(ADMIN_EMAIL, user);
+        } catch (emailError) {
+          console.error('Admin approval notification error:', emailError.message);
+        }
 
         return res.json({
           message: 'Email verified successfully. Your account is pending admin approval.',
@@ -226,12 +248,26 @@ class AuthController {
         return res.status(400).json({ error: 'Email already verified' });
       }
 
+      const previousOtp = user.otp ?? null;
+      const previousOtpExpiry = user.otpExpiry ?? null;
       const otp = otpService.generateOTP();
       const otpExpiry = otpService.getOTPExpiry();
 
       await userRepository.updateByEmail(email, { otp, otpExpiry });
 
-      await emailService.sendOTPEmail(email, user.name, otp);
+      try {
+        await emailService.sendOTPEmail(email, user.name, otp);
+      } catch (emailError) {
+        await userRepository
+          .updateByEmail(email, { otp: previousOtp, otpExpiry: previousOtpExpiry })
+          .catch((rollbackError) => {
+            console.error('Resend OTP rollback error:', rollbackError.message);
+          });
+
+        return res.status(503).json({
+          error: 'Unable to resend OTP email right now. Please try again in a few minutes.'
+        });
+      }
 
       res.json({ message: 'New OTP sent successfully' });
     } catch (error) {

@@ -32,9 +32,9 @@ workflow:
 build:backend-images:
   <<: *docker-login
   stage: build
-  image: docker:24.0.5
+  image: public.ecr.aws/docker/library/docker:24.0.5
   services:
-    - name: docker:24.0.5-dind
+    - name: public.ecr.aws/docker/library/docker:24.0.5-dind
       alias: docker
   parallel:
     matrix:
@@ -73,9 +73,9 @@ build:backend-images:
 build:frontend-image:
   <<: *docker-login
   stage: build
-  image: docker:24.0.5
+  image: public.ecr.aws/docker/library/docker:24.0.5
   services:
-    - name: docker:24.0.5-dind
+    - name: public.ecr.aws/docker/library/docker:24.0.5-dind
       alias: docker
   script:
     - IMAGE_REPO="${FRONTEND_IMAGE:-${DOCKER_REGISTRY_URL}/${DOCKER_USERNAME}/s-frontend}"
@@ -100,7 +100,7 @@ build:frontend-image:
   - export DOCKER_PASSWORD_B64="$(printf '%s' "$DOCKER_PASSWORD" | base64 | tr -d '\n')"
 
 .deploy_base: &deploy_base
-  image: alpine:3.20
+  image: public.ecr.aws/docker/library/alpine:3.20
   before_script:
     - *ssh-setup
   <<: *main_branch_rules
@@ -173,6 +173,8 @@ deploy:node-services:
     - IMAGE_REPO="$(eval "printf '%s' \"\${$IMAGE_VAR}\"")"
     - if [ -z "$IMAGE_REPO" ]; then IMAGE_REPO="${DOCKER_REGISTRY_URL}/${DOCKER_USERNAME}/${SERVICE_NAME}"; fi
     - MONGO_CONTAINER="${SERVICE_NAME}-mongo"
+    - MONGO_APP_USERNAME="${SERVICE_NAME}_app"
+    - MONGO_APP_PASSWORD="${MONGO_APP_PASSWORD:-hackathonMongoAppPass123}"
     - >
       ssh -o StrictHostKeyChecking=no "${SSH_REMOTE_USER}@${TARGET_HOST}"
       "set -eu;
@@ -182,13 +184,15 @@ deploy:node-services:
       sudo docker rm -f ${SERVICE_NAME} >/dev/null 2>&1 || true;
       sudo docker stop ${MONGO_CONTAINER} >/dev/null 2>&1 || true;
       sudo docker rm -f ${MONGO_CONTAINER} >/dev/null 2>&1 || true;
-      sudo docker run -d --name ${MONGO_CONTAINER} --network ${DEPLOY_NETWORK} --restart unless-stopped -p ${MONGO_HOST_PORT}:27017 -v ${MONGO_CONTAINER}-data:/data/db --entrypoint bash mongo:7 -c 'echo \"hackathonreplicasetkeyfilesecret1234567890\" > /tmp/keyfile && chmod 400 /tmp/keyfile && chown 999:999 /tmp/keyfile && exec docker-entrypoint.sh mongod --replSet rs0 --keyFile /tmp/keyfile --bind_ip_all';
+      sudo docker run -d --name ${MONGO_CONTAINER} --network ${DEPLOY_NETWORK} --restart unless-stopped -p ${MONGO_HOST_PORT}:27017 -v ${MONGO_CONTAINER}-data:/data/db --entrypoint bash public.ecr.aws/docker/library/mongo:7 -c 'echo \"hackathonreplicasetkeyfilesecret1234567890\" > /tmp/keyfile && chmod 400 /tmp/keyfile && chown 999:999 /tmp/keyfile && exec docker-entrypoint.sh mongod --replSet rs0 --keyFile /tmp/keyfile --bind_ip_all';
       sleep 20;
       for i in {1..10}; do sudo docker exec ${MONGO_CONTAINER} mongosh --quiet --eval 'db.adminCommand({ping:1})' && break || sleep 3; done;
-      sudo docker exec ${MONGO_CONTAINER} mongosh --quiet --eval 'rs.status()' || sudo docker exec ${MONGO_CONTAINER} mongosh --eval 'rs.initiate({_id:\"rs0\",members:[{_id:0,host:\"${MONGO_CONTAINER}:27017\"}]})';
-      sleep 10;
+      sudo docker exec ${MONGO_CONTAINER} mongosh --quiet -u __system -p 'hackathonreplicasetkeyfilesecret1234567890' --authenticationDatabase local --eval \"const desiredHost='${MONGO_CONTAINER}:27017'; const desiredConfig={ _id: 'rs0', version: Math.floor(Date.now() / 1000), members: [{ _id: 0, host: desiredHost }] }; try { const status=rs.status(); const selfMember=(status.members || []).find(m => m.self); const currentHost=selfMember ? selfMember.name : ((status.members && status.members[0] && status.members[0].name) ? status.members[0].name : ''); if (currentHost !== desiredHost) { rs.reconfig(desiredConfig, { force: true }); } } catch (e) { const msg=(e && e.message) ? e.message : String(e); if (msg.includes('NotYetInitialized')) { rs.initiate({ _id: 'rs0', members: [{ _id: 0, host: desiredHost }] }); } else { rs.reconfig(desiredConfig, { force: true }); } }\";
+      for i in {1..15}; do sudo docker exec ${MONGO_CONTAINER} mongosh --quiet -u __system -p 'hackathonreplicasetkeyfilesecret1234567890' --authenticationDatabase local --eval 'db.hello().isWritablePrimary' | grep -q true && break || sleep 2; done;
+      sudo docker exec ${MONGO_CONTAINER} mongosh --quiet -u __system -p 'hackathonreplicasetkeyfilesecret1234567890' --authenticationDatabase local --eval 'quit(db.hello().isWritablePrimary ? 0 : 1)';
+      sudo docker exec ${MONGO_CONTAINER} mongosh --quiet -u __system -p 'hackathonreplicasetkeyfilesecret1234567890' --authenticationDatabase local --eval \"const admin=db.getSiblingDB('admin'); const username='${MONGO_APP_USERNAME}'; const password='${MONGO_APP_PASSWORD}'; const dbName='${DATABASE_NAME}'; if (admin.getUser(username)) { admin.updateUser(username, { pwd: password, roles: [{ role: 'readWrite', db: dbName }] }); } else { admin.createUser({ user: username, pwd: password, roles: [{ role: 'readWrite', db: dbName }] }); }\";
       sudo docker pull ${IMAGE_REPO}:${CI_COMMIT_SHORT_SHA};
-      sudo docker run -d --name ${SERVICE_NAME} --network ${DEPLOY_NETWORK} --restart unless-stopped -p ${SERVICE_PORT}:${SERVICE_PORT} -e PORT=${SERVICE_PORT} -e SERVICE_NAME=${SERVICE_NAME} -e FRONTEND_URL='${FRONTEND_URL}' -e DATABASE_URL='mongodb://${MONGO_CONTAINER}:27017/${DATABASE_NAME}?replicaSet=rs0&directConnection=true' -e JWT_SECRET='${JWT_SECRET}' -e JWT_REFRESH_SECRET='${JWT_REFRESH_SECRET}' -e EMAIL_HOST='${EMAIL_HOST}' -e EMAIL_PORT='${EMAIL_PORT}' -e EMAIL_USER='${EMAIL_USER}' -e EMAIL_PASS='${EMAIL_PASS}' ${IMAGE_REPO}:${CI_COMMIT_SHORT_SHA};
+      sudo docker run -d --name ${SERVICE_NAME} --network ${DEPLOY_NETWORK} --restart unless-stopped -p ${SERVICE_PORT}:${SERVICE_PORT} -e PORT=${SERVICE_PORT} -e SERVICE_NAME=${SERVICE_NAME} -e FRONTEND_URL='${FRONTEND_URL}' -e API_GATEWAY_URL='${API_GATEWAY_URL}' -e PAI_GATEWAY_URL='${PAI_GATEWAY_URL}' -e PUBLIC_URL='${PUBLIC_URL:-${API_GATEWAY_URL}}' -e DATABASE_URL='mongodb://${MONGO_APP_USERNAME}:${MONGO_APP_PASSWORD}@${MONGO_CONTAINER}:27017/${DATABASE_NAME}?authSource=admin&replicaSet=rs0&directConnection=true' -e JWT_SECRET='${JWT_SECRET}' -e JWT_REFRESH_SECRET='${JWT_REFRESH_SECRET}' -e EMAIL_HOST='${EMAIL_HOST}' -e EMAIL_PORT='${EMAIL_PORT}' -e EMAIL_USER='${EMAIL_USER}' -e EMAIL_PASS='${EMAIL_PASS}' -e SMTP_HOST='${SMTP_HOST:-${EMAIL_HOST}}' -e SMTP_PORT='${SMTP_PORT:-${EMAIL_PORT}}' -e SMTP_USER='${SMTP_USER:-${EMAIL_USER}}' -e SMTP_PASS='${SMTP_PASS:-${EMAIL_PASS}}' -e AWS_ACCESS_KEY_ID='${AWS_ACCESS_KEY_ID}' -e AWS_SECRET_ACCESS_KEY='${AWS_SECRET_ACCESS_KEY}' -e AWS_SESSION_TOKEN='${AWS_SESSION_TOKEN}' -e AWS_REGION='${AWS_REGION}' -e AWS_DEFAULT_REGION='${AWS_REGION}' -e AWS_S3_BUCKET='${AWS_S3_BUCKET}' -e EVIDENCE_S3_PREFIX='${EVIDENCE_S3_PREFIX}' -e AWS_S3_ENDPOINT='${AWS_S3_ENDPOINT}' -e AWS_S3_FORCE_PATH_STYLE='${AWS_S3_FORCE_PATH_STYLE}' ${IMAGE_REPO}:${CI_COMMIT_SHORT_SHA};
       sudo docker image prune -af >/dev/null 2>&1 || true"
 
 deploy:python-services:
@@ -217,6 +221,8 @@ deploy:python-services:
     - IMAGE_REPO="$(eval "printf '%s' \"\${$IMAGE_VAR}\"")"
     - if [ -z "$IMAGE_REPO" ]; then IMAGE_REPO="${DOCKER_REGISTRY_URL}/${DOCKER_USERNAME}/${SERVICE_NAME}"; fi
     - MONGO_CONTAINER="${SERVICE_NAME}-mongo"
+    - MONGO_APP_USERNAME="${SERVICE_NAME}_app"
+    - MONGO_APP_PASSWORD="${MONGO_APP_PASSWORD:-hackathonMongoAppPass123}"
     - >
       ssh -o StrictHostKeyChecking=no "${SSH_REMOTE_USER}@${TARGET_HOST}"
       "set -eu;
@@ -226,13 +232,15 @@ deploy:python-services:
       sudo docker rm -f ${SERVICE_NAME} >/dev/null 2>&1 || true;
       sudo docker stop ${MONGO_CONTAINER} >/dev/null 2>&1 || true;
       sudo docker rm -f ${MONGO_CONTAINER} >/dev/null 2>&1 || true;
-      sudo docker run -d --name ${MONGO_CONTAINER} --network ${DEPLOY_NETWORK} --restart unless-stopped -p ${MONGO_HOST_PORT}:27017 -v ${MONGO_CONTAINER}-data:/data/db --entrypoint bash mongo:7 -c 'echo \"hackathonreplicasetkeyfilesecret1234567890\" > /tmp/keyfile && chmod 400 /tmp/keyfile && chown 999:999 /tmp/keyfile && exec docker-entrypoint.sh mongod --replSet rs0 --keyFile /tmp/keyfile --bind_ip_all';
+      sudo docker run -d --name ${MONGO_CONTAINER} --network ${DEPLOY_NETWORK} --restart unless-stopped -p ${MONGO_HOST_PORT}:27017 -v ${MONGO_CONTAINER}-data:/data/db --entrypoint bash public.ecr.aws/docker/library/mongo:7 -c 'echo \"hackathonreplicasetkeyfilesecret1234567890\" > /tmp/keyfile && chmod 400 /tmp/keyfile && chown 999:999 /tmp/keyfile && exec docker-entrypoint.sh mongod --replSet rs0 --keyFile /tmp/keyfile --bind_ip_all';
       sleep 20;
       for i in {1..10}; do sudo docker exec ${MONGO_CONTAINER} mongosh --quiet --eval 'db.adminCommand({ping:1})' && break || sleep 3; done;
-      sudo docker exec ${MONGO_CONTAINER} mongosh --quiet --eval 'rs.status()' || sudo docker exec ${MONGO_CONTAINER} mongosh --eval 'rs.initiate({_id:\"rs0\",members:[{_id:0,host:\"${MONGO_CONTAINER}:27017\"}]})';
-      sleep 10;
+      sudo docker exec ${MONGO_CONTAINER} mongosh --quiet -u __system -p 'hackathonreplicasetkeyfilesecret1234567890' --authenticationDatabase local --eval \"const desiredHost='${MONGO_CONTAINER}:27017'; const desiredConfig={ _id: 'rs0', version: Math.floor(Date.now() / 1000), members: [{ _id: 0, host: desiredHost }] }; try { const status=rs.status(); const selfMember=(status.members || []).find(m => m.self); const currentHost=selfMember ? selfMember.name : ((status.members && status.members[0] && status.members[0].name) ? status.members[0].name : ''); if (currentHost !== desiredHost) { rs.reconfig(desiredConfig, { force: true }); } } catch (e) { const msg=(e && e.message) ? e.message : String(e); if (msg.includes('NotYetInitialized')) { rs.initiate({ _id: 'rs0', members: [{ _id: 0, host: desiredHost }] }); } else { rs.reconfig(desiredConfig, { force: true }); } }\";
+      for i in {1..15}; do sudo docker exec ${MONGO_CONTAINER} mongosh --quiet -u __system -p 'hackathonreplicasetkeyfilesecret1234567890' --authenticationDatabase local --eval 'db.hello().isWritablePrimary' | grep -q true && break || sleep 2; done;
+      sudo docker exec ${MONGO_CONTAINER} mongosh --quiet -u __system -p 'hackathonreplicasetkeyfilesecret1234567890' --authenticationDatabase local --eval 'quit(db.hello().isWritablePrimary ? 0 : 1)';
+      sudo docker exec ${MONGO_CONTAINER} mongosh --quiet -u __system -p 'hackathonreplicasetkeyfilesecret1234567890' --authenticationDatabase local --eval \"const admin=db.getSiblingDB('admin'); const username='${MONGO_APP_USERNAME}'; const password='${MONGO_APP_PASSWORD}'; const dbName='${DATABASE_NAME}'; if (admin.getUser(username)) { admin.updateUser(username, { pwd: password, roles: [{ role: 'readWrite', db: dbName }] }); } else { admin.createUser({ user: username, pwd: password, roles: [{ role: 'readWrite', db: dbName }] }); }\";
       sudo docker pull ${IMAGE_REPO}:${CI_COMMIT_SHORT_SHA};
-      sudo docker run -d --name ${SERVICE_NAME} --network ${DEPLOY_NETWORK} --restart unless-stopped -p ${SERVICE_PORT}:${SERVICE_PORT} -e PORT=${SERVICE_PORT} -e SERVICE_NAME=${SERVICE_NAME} -e FRONTEND_URL='${FRONTEND_URL}' -e DATABASE_URL='mongodb://${MONGO_CONTAINER}:27017/${DATABASE_NAME}?replicaSet=rs0&directConnection=true' ${IMAGE_REPO}:${CI_COMMIT_SHORT_SHA} uvicorn app.main:app --host 0.0.0.0 --port ${SERVICE_PORT};
+      sudo docker run -d --name ${SERVICE_NAME} --network ${DEPLOY_NETWORK} --restart unless-stopped -p ${SERVICE_PORT}:${SERVICE_PORT} -e PORT=${SERVICE_PORT} -e SERVICE_NAME=${SERVICE_NAME} -e FRONTEND_URL='${FRONTEND_URL}' -e DATABASE_URL='mongodb://${MONGO_APP_USERNAME}:${MONGO_APP_PASSWORD}@${MONGO_CONTAINER}:27017/${DATABASE_NAME}?authSource=admin&replicaSet=rs0&directConnection=true' ${IMAGE_REPO}:${CI_COMMIT_SHORT_SHA} uvicorn app.main:app --host 0.0.0.0 --port ${SERVICE_PORT};
       sudo docker image prune -af >/dev/null 2>&1 || true"
 
 deploy:frontend:

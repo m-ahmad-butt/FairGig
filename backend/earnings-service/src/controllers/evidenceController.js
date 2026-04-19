@@ -9,6 +9,33 @@ const AUTH_SERVICE_BASE_URL = process.env.AUTH_SERVICE_URL || 'http://auth-servi
 const API_GATEWAY_URL = process.env.API_GATEWAY_URL || 'http://api-gateway:8080';
 const EVIDENCE_STATUS_VALUES = ['pending', 'verified', 'flagged', 'unverifiable'];
 
+function resolveS3ErrorMessage(error) {
+  const code = String(error?.name || error?.Code || error?.code || '').trim();
+  const statusCode = Number(error?.$metadata?.httpStatusCode || 0);
+
+  if (code === 'NoSuchBucket') {
+    return 'S3 bucket does not exist. Verify AWS_S3_BUCKET.';
+  }
+
+  if (code === 'AccessDenied' || statusCode === 403) {
+    return 'S3 access denied. Check IAM permissions for this bucket (s3:PutObject and s3:GetObject).';
+  }
+
+  if (code === 'InvalidAccessKeyId' || code === 'SignatureDoesNotMatch' || code === 'UnrecognizedClientException') {
+    return 'Invalid AWS credentials for S3. Verify AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY.';
+  }
+
+  if (code === 'ExpiredToken') {
+    return 'AWS credentials are expired. Rotate keys and redeploy.';
+  }
+
+  if (code === 'PermanentRedirect') {
+    return 'S3 region mismatch. Verify AWS_REGION matches the bucket region.';
+  }
+
+  return null;
+}
+
 function shouldTriggerAnomalyDetection(previousVerified, nextVerified) {
   return previousVerified !== true && nextVerified === true;
 }
@@ -146,6 +173,12 @@ class EvidenceController {
         return res.status(500).json({ error: error.message });
       }
 
+      const s3ErrorMessage = resolveS3ErrorMessage(error);
+      if (s3ErrorMessage) {
+        console.error('Upload evidence image S3 error:', error);
+        return res.status(500).json({ error: s3ErrorMessage });
+      }
+
       console.error('Upload evidence image error:', error);
       return res.status(500).json({ error: 'Failed to upload evidence image' });
     }
@@ -182,6 +215,12 @@ class EvidenceController {
 
       if (error?.code === 'CONFIG_ERROR') {
         return res.status(500).json({ error: error.message });
+      }
+
+      const s3ErrorMessage = resolveS3ErrorMessage(error);
+      if (s3ErrorMessage) {
+        console.error('Generate evidence presigned URL S3 error:', error);
+        return res.status(500).json({ error: s3ErrorMessage });
       }
 
       console.error('Generate evidence presigned URL error:', error);

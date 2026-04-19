@@ -160,7 +160,7 @@ class EarningsService {
 
     const result = await response.json();
     if (!response.ok) {
-      throw new Error(result.error || 'Failed to upload evidence image');
+      throw new Error(result.error || 'Failed to upload evidence file');
     }
 
     return result;
@@ -333,7 +333,7 @@ class EarningsService {
 
   // AI screenshot verifier (shared-agent-service)
   async verifyScreenshotWithAI(workerId, sessionId) {
-    const response = await fetch(`${GATEWAY_API_BASE}/shared-agent/ai/screenshot-verifier`, {
+    const response = await fetch(`${GATEWAY_API_BASE}/api/shared-agent/ai/screenshot-verifier`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -354,7 +354,7 @@ class EarningsService {
 
   // Anomaly detection service
   async getWorkerAnomalies(workerId, limit = 20) {
-    const response = await fetch(`${GATEWAY_API_BASE}/anomaly/anomalies/worker/${workerId}?limit=${limit}`, {
+    const response = await fetch(`${GATEWAY_API_BASE}/api/anomaly/anomalies/worker/${workerId}?limit=${limit}`, {
       headers: getAuthHeaders()
     });
 
