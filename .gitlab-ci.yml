@@ -211,9 +211,9 @@ deploy:node-services:
       sudo docker stop ${SERVICE_NAME} >/dev/null 2>&1 || true;
       sudo docker rm -f ${SERVICE_NAME} >/dev/null 2>&1 || true;
       sudo docker rm -f ${MONGO_CONTAINER} >/dev/null 2>&1 || true;
-      sudo docker run -d --name ${MONGO_CONTAINER} --network ${DEPLOY_NETWORK} --restart unless-stopped -p ${MONGO_HOST_PORT}:27017 -v ${MONGO_CONTAINER}-data:/data/db mongo:7 --replSet rs0 >/dev/null;
-      sleep 5;
-      sudo docker exec ${MONGO_CONTAINER} mongosh --eval 'rs.initiate({_id: \"rs0\", members: [{_id: 0, host: \"${MONGO_CONTAINER}:27017\"}]})' >/dev/null 2>&1 || true;
+      sudo docker run -d --name ${MONGO_CONTAINER} --network ${DEPLOY_NETWORK} --restart unless-stopped -p ${MONGO_HOST_PORT}:27017 -v ${MONGO_CONTAINER}-data:/data/db --entrypoint bash mongo:7 -c 'echo \"hackathonreplicasetkeyfilesecret1234567890\" > /tmp/keyfile && chmod 400 /tmp/keyfile && chown 999:999 /tmp/keyfile && exec docker-entrypoint.sh mongod --replSet rs0 --keyFile /tmp/keyfile --bind_ip_all' >/dev/null;
+      sleep 15;
+      sudo docker exec ${MONGO_CONTAINER} mongosh --eval 'try { var status = rs.status(); console.log(\"Replica set already initialized: \" + status.set); } catch(e) { console.log(\"Initiating replica set...\"); rs.initiate({_id: \"rs0\", members: [{_id: 0, host: \"${MONGO_CONTAINER}:27017\"}]}); }' >/dev/null 2>&1 || true;
       sudo docker rm -f ${MONGO_EXPRESS_CONTAINER} >/dev/null 2>&1 || true;
       sudo docker run -d --name ${MONGO_EXPRESS_CONTAINER} --network ${DEPLOY_NETWORK} --restart unless-stopped -p ${MONGO_EXPRESS_PORT}:8081 -e ME_CONFIG_MONGODB_URL='mongodb://${MONGO_CONTAINER}:27017/?directConnection=true' -e ME_CONFIG_BASICAUTH=false mongo-express:latest >/dev/null;
       sudo docker pull ${IMAGE_REPO}:${CI_COMMIT_SHORT_SHA};
@@ -268,9 +268,9 @@ deploy:python-services:
       sudo docker stop ${SERVICE_NAME} >/dev/null 2>&1 || true;
       sudo docker rm -f ${SERVICE_NAME} >/dev/null 2>&1 || true;
       sudo docker rm -f ${MONGO_CONTAINER} >/dev/null 2>&1 || true;
-      sudo docker run -d --name ${MONGO_CONTAINER} --network ${DEPLOY_NETWORK} --restart unless-stopped -p ${MONGO_HOST_PORT}:27017 -v ${MONGO_CONTAINER}-data:/data/db mongo:7 --replSet rs0 >/dev/null;
-      sleep 5;
-      sudo docker exec ${MONGO_CONTAINER} mongosh --eval 'rs.initiate({_id: \"rs0\", members: [{_id: 0, host: \"${MONGO_CONTAINER}:27017\"}]})' >/dev/null 2>&1 || true;
+      sudo docker run -d --name ${MONGO_CONTAINER} --network ${DEPLOY_NETWORK} --restart unless-stopped -p ${MONGO_HOST_PORT}:27017 -v ${MONGO_CONTAINER}-data:/data/db --entrypoint bash mongo:7 -c 'echo \"hackathonreplicasetkeyfilesecret1234567890\" > /tmp/keyfile && chmod 400 /tmp/keyfile && chown 999:999 /tmp/keyfile && exec docker-entrypoint.sh mongod --replSet rs0 --keyFile /tmp/keyfile --bind_ip_all' >/dev/null;
+      sleep 15;
+      sudo docker exec ${MONGO_CONTAINER} mongosh --eval 'try { var status = rs.status(); console.log(\"Replica set already initialized: \" + status.set); } catch(e) { console.log(\"Initiating replica set...\"); rs.initiate({_id: \"rs0\", members: [{_id: 0, host: \"${MONGO_CONTAINER}:27017\"}]}); }' >/dev/null 2>&1 || true;
       sudo docker rm -f ${MONGO_EXPRESS_CONTAINER} >/dev/null 2>&1 || true;
       sudo docker run -d --name ${MONGO_EXPRESS_CONTAINER} --network ${DEPLOY_NETWORK} --restart unless-stopped -p ${MONGO_EXPRESS_PORT}:8081 -e ME_CONFIG_MONGODB_URL='mongodb://${MONGO_CONTAINER}:27017/?directConnection=true' -e ME_CONFIG_BASICAUTH=false mongo-express:latest >/dev/null;
       sudo docker pull ${IMAGE_REPO}:${CI_COMMIT_SHORT_SHA};
